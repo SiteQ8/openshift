@@ -1,0 +1,58 @@
+# =============================================================================
+# ArgoCD GitOps Configuration
+# Author: Ali AlEnezi (@SiteQ8)
+# =============================================================================
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: security-policies
+  namespace: openshift-gitops
+spec:
+  project: security
+  source:
+    repoURL: https://github.com/SiteQ8/openshift.git
+    targetRevision: main
+    path: policies
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: false  # Never auto-delete policies
+      selfHeal: true  # Auto-fix drift
+    syncOptions:
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: security
+  namespace: openshift-gitops
+spec:
+  description: "Security policies and configurations"
+  sourceRepos:
+    - https://github.com/SiteQ8/openshift.git
+  destinations:
+    - namespace: '*'
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: 'networking.k8s.io'
+      kind: 'NetworkPolicy'
+    - group: 'constraints.gatekeeper.sh'
+      kind: '*'
+    - group: 'kyverno.io'
+      kind: '*'
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: 'ResourceQuota'
+    - group: ''
+      kind: 'LimitRange'

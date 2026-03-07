@@ -1,0 +1,99 @@
+# =============================================================================
+# Security Context Constraints (SCC) Profiles
+# Author: Ali AlEnezi (@SiteQ8)
+# =============================================================================
+
+---
+# PCI CDE Workload SCC - Maximum Restriction
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: pci-cde-restricted
+  annotations:
+    kubernetes.io/description: "Maximum restriction SCC for PCI CDE workloads"
+    compliance.pci-dss/requirement: "2.2.4,6.2.1"
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+allowedCapabilities: []
+allowedFlexVolumes: []
+allowedUnsafeSysctls: []
+defaultAddCapabilities: []
+forbiddenSysctls:
+  - "*"
+fsGroup:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 65534
+readOnlyRootFilesystem: true
+requiredDropCapabilities:
+  - ALL
+runAsUser:
+  type: MustRunAsRange
+  uidRangeMin: 1000
+  uidRangeMax: 65534
+seLinuxContext:
+  type: MustRunAs
+seccompProfiles:
+  - runtime/default
+supplementalGroups:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 65534
+volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+users: []
+groups: []
+
+---
+# Monitoring Workload SCC
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: monitoring-scc
+  annotations:
+    kubernetes.io/description: "SCC for monitoring agents (Prometheus, node-exporter)"
+allowHostDirVolumePlugin: true
+allowHostIPC: false
+allowHostNetwork: true
+allowHostPID: true
+allowHostPorts: true
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+allowedCapabilities: []
+defaultAddCapabilities: []
+fsGroup:
+  type: RunAsAny
+readOnlyRootFilesystem: true
+requiredDropCapabilities:
+  - ALL
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: RunAsAny
+seccompProfiles:
+  - runtime/default
+supplementalGroups:
+  type: RunAsAny
+volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - hostPath
+  - persistentVolumeClaim
+  - projected
+  - secret
+users:
+  - system:serviceaccount:openshift-monitoring:prometheus-k8s
+  - system:serviceaccount:openshift-monitoring:node-exporter

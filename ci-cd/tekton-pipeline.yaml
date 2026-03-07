@@ -1,0 +1,241 @@
+# =============================================================================
+# Tekton Secure CI/CD Pipeline
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 6 - Secure Development
+# =============================================================================
+
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: secure-build-pipeline
+  namespace: ci-cd
+  labels:
+    compliance.pci-dss/requirement: "6.2.1,6.2.3,6.3.1"
+spec:
+  params:
+    - name: git-url
+      type: string
+    - name: git-revision
+      type: string
+      default: main
+    - name: image-name
+      type: string
+    - name: image-tag
+      type: string
+  workspaces:
+    - name: shared-workspace
+    - name: git-credentials
+    - name: registry-credentials
+    - name: cosign-keys
+
+  tasks:
+    # Step 1: Clone source code
+    - name: git-clone
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+        - name: basic-auth
+          workspace: git-credentials
+
+    # Step 2: Static Application Security Testing (SAST)
+    - name: sast-scan
+      taskRef:
+        name: sast-semgrep
+      runAfter: ["git-clone"]
+      params:
+        - name: scan-path
+          value: "$(workspaces.source.path)"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    # Step 3: Secret Detection
+    - name: secret-detection
+      taskRef:
+        name: detect-secrets
+      runAfter: ["git-clone"]
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    # Step 4: Build container image
+    - name: build-image
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      runAfter: ["sast-scan", "secret-detection"]
+      params:
+        - name: IMAGE
+          value: "$(params.image-name):$(params.image-tag)"
+        - name: DOCKERFILE
+          value: Dockerfile
+        - name: TLSVERIFY
+          value: "true"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    # Step 5: Vulnerability Scanning
+    - name: vulnerability-scan
+      taskRef:
+        name: trivy-scanner
+      runAfter: ["build-image"]
+      params:
+        - name: IMAGE
+          value: "$(params.image-name):$(params.image-tag)"
+        - name: SEVERITY
+          value: "CRITICAL,HIGH"
+        - name: EXIT_CODE
+          value: "1"  # Fail pipeline on CRITICAL/HIGH
+
+    # Step 6: Generate SBOM
+    - name: generate-sbom
+      taskRef:
+        name: syft-sbom
+      runAfter: ["build-image"]
+      params:
+        - name: IMAGE
+          value: "$(params.image-name):$(params.image-tag)"
+        - name: OUTPUT_FORMAT
+          value: "spdx-json"
+
+    # Step 7: Sign container image
+    - name: sign-image
+      taskRef:
+        name: cosign-sign
+      runAfter: ["vulnerability-scan", "generate-sbom"]
+      params:
+        - name: IMAGE
+          value: "$(params.image-name):$(params.image-tag)"
+      workspaces:
+        - name: cosign-keys
+          workspace: cosign-keys
+
+    # Step 8: Push to registry
+    - name: push-image
+      taskRef:
+        name: skopeo-copy
+        kind: ClusterTask
+      runAfter: ["sign-image"]
+      params:
+        - name: srcImageURL
+          value: "docker://$(params.image-name):$(params.image-tag)"
+        - name: destImageURL
+          value: "docker://quay.io/enterprise/$(params.image-name):$(params.image-tag)"
+      workspaces:
+        - name: images-url
+          workspace: registry-credentials
+
+---
+# SAST Task Definition (Semgrep)
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: sast-semgrep
+  namespace: ci-cd
+spec:
+  workspaces:
+    - name: source
+  params:
+    - name: scan-path
+      type: string
+  steps:
+    - name: semgrep-scan
+      image: returntocorp/semgrep:latest
+      script: |
+        #!/bin/bash
+        set -e
+        echo "Running SAST scan with Semgrep..."
+        semgrep --config auto --severity ERROR --error \
+          --json --output /tmp/semgrep-results.json \
+          $(params.scan-path) || {
+          echo "SAST scan found critical vulnerabilities!"
+          cat /tmp/semgrep-results.json
+          exit 1
+        }
+        echo "SAST scan passed - no critical findings."
+
+---
+# Trivy Scanner Task
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: trivy-scanner
+  namespace: ci-cd
+spec:
+  params:
+    - name: IMAGE
+      type: string
+    - name: SEVERITY
+      type: string
+      default: "CRITICAL,HIGH"
+    - name: EXIT_CODE
+      type: string
+      default: "1"
+  steps:
+    - name: trivy-scan
+      image: aquasec/trivy:latest
+      script: |
+        #!/bin/bash
+        trivy image --severity $(params.SEVERITY) \
+          --exit-code $(params.EXIT_CODE) \
+          --format json \
+          --output /tmp/trivy-results.json \
+          $(params.IMAGE)
+        echo "Vulnerability scan completed."
+
+---
+# Cosign Image Signing Task
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cosign-sign
+  namespace: ci-cd
+spec:
+  params:
+    - name: IMAGE
+      type: string
+  workspaces:
+    - name: cosign-keys
+  steps:
+    - name: sign-image
+      image: gcr.io/projectsigstore/cosign:v2.2.0
+      script: |
+        #!/bin/bash
+        set -e
+        export COSIGN_KEY=$(workspaces.cosign-keys.path)/cosign.key
+        cosign sign --key $COSIGN_KEY $(params.IMAGE)
+        echo "Image signed successfully: $(params.IMAGE)"
+
+---
+# SBOM Generation Task
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: syft-sbom
+  namespace: ci-cd
+spec:
+  params:
+    - name: IMAGE
+      type: string
+    - name: OUTPUT_FORMAT
+      type: string
+      default: "spdx-json"
+  steps:
+    - name: generate-sbom
+      image: anchore/syft:latest
+      script: |
+        #!/bin/bash
+        syft packages $(params.IMAGE) \
+          -o $(params.OUTPUT_FORMAT) \
+          --file /tmp/sbom.json
+        echo "SBOM generated for $(params.IMAGE)"

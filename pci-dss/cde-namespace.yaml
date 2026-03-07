@@ -1,0 +1,75 @@
+# =============================================================================
+# PCI DSS - Cardholder Data Environment (CDE) Namespace
+# Author: Ali AlEnezi (@SiteQ8)
+# =============================================================================
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pci-cde
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    security.openshift.io/classification: "restricted"
+    pci-dss/zone: "cde"
+    pci-dss/scope: "in-scope"
+    network.openshift.io/policy-group: "pci-cde"
+  annotations:
+    openshift.io/node-selector: "node-role.kubernetes.io/pci-cde=true"
+    openshift.io/sa.scc.allowed: "pci-cde-restricted"
+    scheduler.alpha.kubernetes.io/defaultTolerations: '[{"key":"pci-cde","operator":"Equal","value":"true","effect":"NoSchedule"}]'
+    network-policy/configured: "true"
+    description: "PCI DSS Cardholder Data Environment - Maximum security isolation"
+
+---
+# PCI CDE Resource Quota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: pci-cde-quota
+  namespace: pci-cde
+spec:
+  hard:
+    pods: "20"
+    requests.cpu: "8"
+    requests.memory: "16Gi"
+    limits.cpu: "16"
+    limits.memory: "32Gi"
+    persistentvolumeclaims: "10"
+    services.loadbalancers: "0"
+    services.nodeports: "0"
+
+---
+# PCI CDE Limit Range
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: pci-cde-limits
+  namespace: pci-cde
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      max:
+        cpu: "2"
+        memory: "4Gi"
+
+---
+# Default deny all traffic in CDE
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pci-cde-default-deny
+  namespace: pci-cde
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

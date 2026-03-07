@@ -1,0 +1,136 @@
+# =============================================================================
+# etcd Encryption Configuration
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 3.5.1 - Protect Stored Data
+# =============================================================================
+
+---
+# Enable etcd encryption for secrets, configmaps, and custom resources
+apiVersion: config.openshift.io/v1
+kind: APIServer
+metadata:
+  name: cluster
+spec:
+  encryption:
+    type: aesgcm  # AES-256-GCM encryption
+
+---
+# EncryptionConfig for additional resource types
+# Applied via MachineConfig to control plane nodes
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: 99-master-etcd-encryption-config
+  labels:
+    machineconfiguration.openshift.io/role: master
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      files:
+        - path: /etc/kubernetes/encryption-config.yaml
+          mode: 0600
+          contents:
+            inline: |
+              apiVersion: apiserver.config.k8s.io/v1
+              kind: EncryptionConfiguration
+              resources:
+                - resources:
+                    - secrets
+                    - configmaps
+                  providers:
+                    - aesgcm:
+                        keys:
+                          - name: key-2026-03
+                            secret: <BASE64_ENCODED_32_BYTE_KEY>
+                    - identity: {}
+                - resources:
+                    - routes.route.openshift.io
+                    - oauthaccesstokens.oauth.openshift.io
+                    - oauthauthorizetokens.oauth.openshift.io
+                  providers:
+                    - aesgcm:
+                        keys:
+                          - name: key-2026-03
+                            secret: <BASE64_ENCODED_32_BYTE_KEY>
+                    - identity: {}
+
+---
+# etcd backup CronJob (encrypted)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-backup
+  namespace: openshift-etcd
+  labels:
+    compliance.pci-dss/requirement: "3.6.1"
+spec:
+  schedule: "0 */6 * * *"  # Every 6 hours
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: etcd-backup
+              image: registry.redhat.io/openshift4/ose-tools-rhel8:latest
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  BACKUP_DIR="/backup/etcd-$(date +%Y%m%d-%H%M%S)"
+                  mkdir -p "$BACKUP_DIR"
+
+                  # Create etcd snapshot
+                  etcdctl snapshot save "$BACKUP_DIR/snapshot.db" \
+                    --endpoints=https://localhost:2379 \
+                    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+                    --cert=/etc/kubernetes/pki/etcd/server.crt \
+                    --key=/etc/kubernetes/pki/etcd/server.key
+
+                  # Encrypt backup with GPG
+                  gpg --batch --yes --symmetric \
+                    --cipher-algo AES256 \
+                    --passphrase-file /etc/etcd-backup/encryption-key \
+                    --output "$BACKUP_DIR/snapshot.db.gpg" \
+                    "$BACKUP_DIR/snapshot.db"
+
+                  # Remove unencrypted snapshot
+                  rm -f "$BACKUP_DIR/snapshot.db"
+
+                  # Verify backup
+                  etcdctl snapshot status "$BACKUP_DIR/snapshot.db.gpg" 2>/dev/null || true
+
+                  echo "Backup completed: $BACKUP_DIR"
+
+                  # Clean backups older than 30 days
+                  find /backup -maxdepth 1 -type d -mtime +30 -exec rm -rf {} \;
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+                - name: etcd-certs
+                  mountPath: /etc/kubernetes/pki/etcd
+                  readOnly: true
+                - name: encryption-key
+                  mountPath: /etc/etcd-backup
+                  readOnly: true
+          restartPolicy: OnFailure
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: etcd-backup-pvc
+            - name: etcd-certs
+              secret:
+                secretName: etcd-peer-cert
+            - name: encryption-key
+              secret:
+                secretName: etcd-backup-encryption-key
+          nodeSelector:
+            node-role.kubernetes.io/master: ""
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule

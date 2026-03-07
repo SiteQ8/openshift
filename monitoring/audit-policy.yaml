@@ -1,0 +1,99 @@
+# =============================================================================
+# API Server Audit Policy
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 10.2.1, 10.3.1
+# =============================================================================
+
+apiVersion: audit.k8s.io/v1
+kind: Policy
+metadata:
+  name: enterprise-audit-policy
+rules:
+  # Log all requests to secrets at RequestResponse level (PCI DSS 10.2.1)
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["secrets"]
+
+  # Log all authentication/authorization events
+  - level: RequestResponse
+    resources:
+      - group: "authentication.k8s.io"
+        resources: ["*"]
+      - group: "authorization.k8s.io"
+        resources: ["*"]
+
+  # Log all RBAC changes
+  - level: RequestResponse
+    resources:
+      - group: "rbac.authorization.k8s.io"
+        resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
+
+  # Log all changes in PCI CDE namespace at full detail
+  - level: RequestResponse
+    namespaces: ["pci-cde"]
+
+  # Log pod exec and attach (security-sensitive)
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["pods/exec", "pods/attach", "pods/portforward"]
+
+  # Log all changes to network policies
+  - level: RequestResponse
+    resources:
+      - group: "networking.k8s.io"
+        resources: ["networkpolicies"]
+
+  # Log SecurityContextConstraints changes
+  - level: RequestResponse
+    resources:
+      - group: "security.openshift.io"
+        resources: ["securitycontextconstraints"]
+
+  # Log namespace creation/deletion
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["namespaces"]
+    verbs: ["create", "delete", "update", "patch"]
+
+  # Log all node operations
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["nodes", "nodes/status"]
+    verbs: ["create", "delete", "update", "patch"]
+
+  # Log OAuth token events
+  - level: Metadata
+    resources:
+      - group: "oauth.openshift.io"
+        resources: ["*"]
+
+  # Metadata level for read operations on most resources
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["configmaps", "services", "deployments"]
+    verbs: ["get", "list", "watch"]
+
+  # Skip logging for health checks and metrics
+  - level: None
+    users: ["system:kube-proxy"]
+    verbs: ["watch"]
+    resources:
+      - group: ""
+        resources: ["endpoints", "services", "services/status"]
+
+  - level: None
+    userGroups: ["system:nodes"]
+    verbs: ["get"]
+    resources:
+      - group: ""
+        resources: ["nodes", "nodes/status"]
+
+  # Log everything else at Metadata level
+  - level: Metadata
+    omitStages:
+      - "RequestReceived"

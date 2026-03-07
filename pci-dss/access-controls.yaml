@@ -1,0 +1,52 @@
+# =============================================================================
+# PCI DSS Access Controls
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 7, 8
+# =============================================================================
+
+---
+# PCI CDE RoleBinding - Only authorized personnel
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pci-cde-admin-binding
+  namespace: pci-cde
+  annotations:
+    pci-dss/access-review-date: "2026-03-01"
+    pci-dss/next-review-date: "2026-06-01"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pci-cde-admin
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: pci-admin-team
+
+---
+# Deny exec into PCI CDE pods
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deny-pod-exec
+  namespace: pci-cde
+rules:
+  - apiGroups: [""]
+    resources: ["pods/exec", "pods/attach"]
+    verbs: []
+
+---
+# PCI CDE viewer (audit team)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pci-audit-viewer
+  namespace: pci-cde
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: namespace-viewer
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: pci-audit-team

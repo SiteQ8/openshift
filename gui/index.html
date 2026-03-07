@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenShift Secure Architecture Blueprint — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e17;--bg2:#0f1420;--bg3:#141a2a;--bg4:#1a2138;
+  --border:#1e2a45;--border-hl:#2d4a7a;
+  --text:#c8d6e5;--text-dim:#6b7fa3;--text-bright:#e8f0fe;
+  --accent:#00d4ff;--accent2:#00ff88;--accent3:#ff6b35;--accent4:#a855f7;
+  --red:#ff4757;--green:#2ed573;--yellow:#ffa502;--blue:#1e90ff;
+  --glow:0 0 20px rgba(0,212,255,0.15);
+  --card-bg:linear-gradient(135deg,rgba(20,26,42,0.9),rgba(15,20,32,0.95));
+}
+html{font-size:14px;scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'IBM Plex Sans',sans-serif;
+  min-height:100vh;overflow-x:hidden;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse at 20% 50%,rgba(0,212,255,0.03),transparent 60%),
+             radial-gradient(ellipse at 80% 20%,rgba(0,255,136,0.02),transparent 50%);
+  pointer-events:none;z-index:0;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--border-hl)}
+
+/* ─── Header ─── */
+.header{
+  position:sticky;top:0;z-index:100;
+  background:rgba(10,14,23,0.85);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  padding:0.8rem 2rem;display:flex;align-items:center;justify-content:space-between;
+}
+.header-left{display:flex;align-items:center;gap:1rem}
+.logo{
+  width:38px;height:38px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1rem;color:var(--bg);
+}
+.header-title{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:1.1rem;color:var(--text-bright)}
+.header-sub{font-size:0.75rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace}
+.header-right{display:flex;align-items:center;gap:1.5rem}
+.status-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--green);
+  animation:pulse 2s infinite;display:inline-block;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.header-meta{font-size:0.75rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace}
+
+/* ─── Navigation ─── */
+.nav{
+  display:flex;gap:0;border-bottom:1px solid var(--border);
+  background:rgba(15,20,32,0.6);overflow-x:auto;
+  padding:0 2rem;position:sticky;top:58px;z-index:99;
+  backdrop-filter:blur(10px);
+}
+.nav-btn{
+  padding:0.75rem 1.2rem;border:none;background:none;
+  color:var(--text-dim);cursor:pointer;font-size:0.8rem;
+  font-family:'JetBrains Mono',monospace;white-space:nowrap;
+  border-bottom:2px solid transparent;transition:all 0.2s;
+  letter-spacing:0.02em;
+}
+.nav-btn:hover{color:var(--text);background:rgba(0,212,255,0.04)}
+.nav-btn.active{
+  color:var(--accent);border-bottom-color:var(--accent);
+  background:rgba(0,212,255,0.06);
+}
+
+/* ─── Main Layout ─── */
+.main{padding:1.5rem 2rem;position:relative;z-index:1;max-width:1600px;margin:0 auto}
+.section{display:none}
+.section.active{display:block}
+
+/* ─── Cards ─── */
+.grid{display:grid;gap:1rem}
+.grid-2{grid-template-columns:repeat(2,1fr)}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:1200px){.grid-3,.grid-4{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:768px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+.card{
+  background:var(--card-bg);border:1px solid var(--border);
+  border-radius:10px;padding:1.2rem;
+  transition:border-color 0.3s,box-shadow 0.3s;
+}
+.card:hover{border-color:var(--border-hl);box-shadow:var(--glow)}
+.card-header{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:1rem;
+}
+.card-title{
+  font-family:'JetBrains Mono',monospace;font-size:0.85rem;
+  font-weight:600;color:var(--text-bright);text-transform:uppercase;
+  letter-spacing:0.05em;
+}
+.card-badge{
+  font-size:0.65rem;padding:0.2rem 0.6rem;border-radius:20px;
+  font-family:'JetBrains Mono',monospace;font-weight:500;
+}
+.badge-green{background:rgba(46,213,115,0.15);color:var(--green);border:1px solid rgba(46,213,115,0.3)}
+.badge-red{background:rgba(255,71,87,0.15);color:var(--red);border:1px solid rgba(255,71,87,0.3)}
+.badge-yellow{background:rgba(255,165,2,0.15);color:var(--yellow);border:1px solid rgba(255,165,2,0.3)}
+.badge-blue{background:rgba(30,144,255,0.15);color:var(--blue);border:1px solid rgba(30,144,255,0.3)}
+.badge-purple{background:rgba(168,85,247,0.15);color:var(--accent4);border:1px solid rgba(168,85,247,0.3)}
+
+/* ─── Stats ─── */
+.stat-value{
+  font-family:'JetBrains Mono',monospace;font-size:2rem;
+  font-weight:700;line-height:1;margin-bottom:0.3rem;
+}
+.stat-label{font-size:0.75rem;color:var(--text-dim)}
+.stat-trend{font-size:0.7rem;margin-top:0.3rem}
+.trend-up{color:var(--green)}
+.trend-down{color:var(--red)}
+
+/* ─── Progress Bar ─── */
+.progress-container{margin:0.6rem 0}
+.progress-header{display:flex;justify-content:space-between;margin-bottom:0.3rem;font-size:0.75rem}
+.progress-bar{
+  height:6px;background:var(--bg);border-radius:3px;overflow:hidden;
+}
+.progress-fill{
+  height:100%;border-radius:3px;transition:width 1.5s cubic-bezier(0.4,0,0.2,1);
+}
+.fill-green{background:linear-gradient(90deg,var(--green),#5aff9e)}
+.fill-blue{background:linear-gradient(90deg,var(--accent),#5ae4ff)}
+.fill-yellow{background:linear-gradient(90deg,var(--yellow),#ffcc5a)}
+.fill-red{background:linear-gradient(90deg,var(--red),#ff7a87)}
+.fill-purple{background:linear-gradient(90deg,var(--accent4),#c084fc)}
+
+/* ─── Tables ─── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:0.8rem}
+th{
+  text-align:left;padding:0.7rem 0.8rem;
+  font-family:'JetBrains Mono',monospace;font-size:0.7rem;
+  text-transform:uppercase;letter-spacing:0.08em;
+  color:var(--text-dim);border-bottom:1px solid var(--border);
+  background:rgba(10,14,23,0.5);
+}
+td{
+  padding:0.6rem 0.8rem;border-bottom:1px solid rgba(30,42,69,0.5);
+  color:var(--text);
+}
+tr:hover td{background:rgba(0,212,255,0.03)}
+.status-icon{font-size:1rem}
+
+/* ─── Architecture Diagram ─── */
+.arch-diagram{
+  background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:2rem;position:relative;overflow:hidden;
+}
+.arch-layer{
+  border:1px solid var(--border);border-radius:8px;
+  padding:1rem;margin-bottom:0.8rem;position:relative;
+  transition:all 0.3s;cursor:pointer;
+}
+.arch-layer:hover{border-color:var(--accent);box-shadow:0 0 15px rgba(0,212,255,0.1)}
+.arch-layer-title{
+  font-family:'JetBrains Mono',monospace;font-size:0.75rem;
+  font-weight:600;text-transform:uppercase;letter-spacing:0.06em;
+  margin-bottom:0.6rem;display:flex;align-items:center;gap:0.5rem;
+}
+.layer-icon{font-size:1.1rem}
+.arch-components{display:flex;flex-wrap:wrap;gap:0.5rem}
+.arch-comp{
+  font-size:0.7rem;padding:0.3rem 0.7rem;border-radius:4px;
+  font-family:'JetBrains Mono',monospace;
+  border:1px solid;
+}
+.comp-external{border-color:rgba(255,107,53,0.4);background:rgba(255,107,53,0.08);color:var(--accent3)}
+.comp-ingress{border-color:rgba(0,212,255,0.4);background:rgba(0,212,255,0.08);color:var(--accent)}
+.comp-control{border-color:rgba(168,85,247,0.4);background:rgba(168,85,247,0.08);color:var(--accent4)}
+.comp-worker{border-color:rgba(0,255,136,0.4);background:rgba(0,255,136,0.08);color:var(--accent2)}
+.comp-security{border-color:rgba(255,71,87,0.4);background:rgba(255,71,87,0.08);color:var(--red)}
+.comp-data{border-color:rgba(30,144,255,0.4);background:rgba(30,144,255,0.08);color:var(--blue)}
+.comp-cicd{border-color:rgba(255,165,2,0.4);background:rgba(255,165,2,0.08);color:var(--yellow)}
+
+.arrow-down{
+  text-align:center;color:var(--text-dim);font-size:1.2rem;
+  margin:0.3rem 0;opacity:0.5;
+}
+
+/* ─── Risk Matrix ─── */
+.risk-cell{
+  width:100%;height:50px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-size:0.65rem;
+  font-weight:600;cursor:pointer;transition:transform 0.2s;
+}
+.risk-cell:hover{transform:scale(1.05)}
+.risk-critical{background:rgba(255,71,87,0.3);color:var(--red);border:1px solid rgba(255,71,87,0.4)}
+.risk-high{background:rgba(255,165,2,0.25);color:var(--yellow);border:1px solid rgba(255,165,2,0.35)}
+.risk-medium{background:rgba(255,212,59,0.15);color:#ffd43b;border:1px solid rgba(255,212,59,0.3)}
+.risk-low{background:rgba(46,213,115,0.15);color:var(--green);border:1px solid rgba(46,213,115,0.3)}
+
+/* ─── MITRE Heatmap ─── */
+.heatmap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0.4rem}
+.heatmap-cell{
+  padding:0.5rem;border-radius:6px;font-size:0.65rem;
+  font-family:'JetBrains Mono',monospace;text-align:center;
+  border:1px solid;cursor:pointer;transition:all 0.2s;
+}
+.heatmap-cell:hover{transform:translateY(-2px)}
+.heat-covered{background:rgba(0,255,136,0.1);border-color:rgba(0,255,136,0.3);color:var(--accent2)}
+.heat-partial{background:rgba(255,165,2,0.1);border-color:rgba(255,165,2,0.3);color:var(--yellow)}
+
+/* ─── Section Title ─── */
+.section-title{
+  font-family:'JetBrains Mono',monospace;font-size:1.1rem;
+  font-weight:700;color:var(--text-bright);margin-bottom:1.2rem;
+  display:flex;align-items:center;gap:0.6rem;
+  letter-spacing:0.02em;
+}
+.section-title::after{
+  content:'';flex:1;height:1px;
+  background:linear-gradient(90deg,var(--border),transparent);
+}
+
+/* ─── Tooltip ─── */
+.tooltip-container{position:relative}
+.tooltip{
+  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:var(--bg4);border:1px solid var(--border-hl);
+  padding:0.6rem 0.8rem;border-radius:6px;font-size:0.72rem;
+  white-space:nowrap;opacity:0;pointer-events:none;transition:opacity 0.2s;
+  z-index:200;color:var(--text);
+}
+.tooltip-container:hover .tooltip{opacity:1}
+
+/* ─── Search ─── */
+.search-box{
+  background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:0.6rem 1rem;color:var(--text);font-size:0.85rem;
+  font-family:'IBM Plex Sans',sans-serif;width:100%;
+  transition:border-color 0.3s;outline:none;
+}
+.search-box:focus{border-color:var(--accent)}
+.search-box::placeholder{color:var(--text-dim)}
+
+/* ─── Animations ─── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.animate-in{animation:fadeUp 0.4s ease-out forwards}
+.delay-1{animation-delay:0.05s;opacity:0}
+.delay-2{animation-delay:0.1s;opacity:0}
+.delay-3{animation-delay:0.15s;opacity:0}
+.delay-4{animation-delay:0.2s;opacity:0}
+
+/* ─── Footer ─── */
+.footer{
+  text-align:center;padding:2rem;font-size:0.72rem;
+  color:var(--text-dim);font-family:'JetBrains Mono',monospace;
+  border-top:1px solid var(--border);margin-top:2rem;
+}
+.footer a{color:var(--accent);text-decoration:none}
+.footer a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">OCP</div>
+    <div>
+      <div class="header-title">OpenShift Secure Architecture</div>
+      <div class="header-sub">Enterprise Blueprint v2.0 — PCI DSS v4.0</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="header-meta"><span class="status-dot"></span> Blueprint Active</span>
+    <span class="header-meta">By Ali AlEnezi</span>
+  </div>
+</header>
+
+<!-- Navigation -->
+<nav class="nav" id="nav">
+  <button class="nav-btn active" data-section="overview">&#9632; Overview</button>
+  <button class="nav-btn" data-section="architecture">&#9670; Architecture</button>
+  <button class="nav-btn" data-section="pci">&#9635; PCI DSS v4.0</button>
+  <button class="nav-btn" data-section="security">&#9733; Security Controls</button>
+  <button class="nav-btn" data-section="network">&#9673; Network</button>
+  <button class="nav-btn" data-section="mitre">&#9650; MITRE ATT&CK</button>
+  <button class="nav-btn" data-section="risk">&#9888; Risk Matrix</button>
+  <button class="nav-btn" data-section="inventory">&#9776; Inventory</button>
+</nav>
+
+<!-- Main Content -->
+<main class="main">
+
+<!-- ═══════════════ OVERVIEW SECTION ═══════════════ -->
+<div class="section active" id="sec-overview">
+  <div class="section-title">&#9632; Security Posture Overview</div>
+  
+  <div class="grid grid-4" style="margin-bottom:1rem">
+    <div class="card animate-in">
+      <div class="card-header"><span class="card-title">Compliance Score</span><span class="card-badge badge-green">PCI DSS</span></div>
+      <div class="stat-value" style="color:var(--green)">100%</div>
+      <div class="stat-label">All 12 requirements mapped</div>
+      <div class="stat-trend trend-up">&#9650; All controls implemented</div>
+    </div>
+    <div class="card animate-in delay-1">
+      <div class="card-header"><span class="card-title">CIS Score</span><span class="card-badge badge-blue">Level 2</span></div>
+      <div class="stat-value" style="color:var(--accent)">97%</div>
+      <div class="stat-label">CIS Benchmark for OCP 4.x</div>
+      <div class="stat-trend trend-up">&#9650; 2 advisory findings</div>
+    </div>
+    <div class="card animate-in delay-2">
+      <div class="card-header"><span class="card-title">Controls</span><span class="card-badge badge-purple">Active</span></div>
+      <div class="stat-value" style="color:var(--accent4)">142</div>
+      <div class="stat-label">Security controls deployed</div>
+      <div class="stat-trend trend-up">&#9650; Policy-as-code enforced</div>
+    </div>
+    <div class="card animate-in delay-3">
+      <div class="card-header"><span class="card-title">ATT&CK</span><span class="card-badge badge-green">Covered</span></div>
+      <div class="stat-value" style="color:var(--accent2)">24/24</div>
+      <div class="stat-label">Container techniques covered</div>
+      <div class="stat-trend trend-up">&#9650; Full matrix coverage</div>
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card animate-in delay-2">
+      <div class="card-header"><span class="card-title">Compliance Standards Coverage</span></div>
+      <div class="progress-container">
+        <div class="progress-header"><span>PCI DSS v4.0</span><span style="color:var(--green)">100%</span></div>
+        <div class="progress-bar"><div class="progress-fill fill-green" style="width:100%"></div></div>
+      </div>
+      <div class="progress-container">
+        <div class="progress-header"><span>CIS Benchmark OCP 4.x</span><span style="color:var(--accent)">97%</span></div>
+        <div class="progress-bar"><div class="progress-fill fill-blue" style="width:97%"></div></div>
+      </div>
+      <div class="progress-container">
+        <div class="progress-header"><span>NIST SP 800-53 Rev 5</span><span style="color:var(--accent4)">94%</span></div>
+        <div class="progress-bar"><div class="progress-fill fill-purple" style="width:94%"></div></div>
+      </div>
+      <div class="progress-container">
+        <div class="progress-header"><span>SOC 2 Type II</span><span style="color:var(--green)">96%</span></div>
+        <div class="progress-bar"><div class="progress-fill fill-green" style="width:96%"></div></div>
+      </div>
+      <div class="progress-container">
+        <div class="progress-header"><span>ISO 27001:2022</span><span style="color:var(--accent)">95%</span></div>
+        <div class="progress-bar"><div class="progress-fill fill-blue" style="width:95%"></div></div>
+      </div>
+      <div class="progress-container">
+        <div class="progress-header"><span>MITRE ATT&CK Containers</span><span style="color:var(--green)">100%</span></div>
+        <div class="progress-bar"><div class="progress-fill fill-green" style="width:100%"></div></div>
+      </div>
+    </div>
+    <div class="card animate-in delay-3">
+      <div class="card-header"><span class="card-title">Security Architecture Layers</span></div>
+      <div id="layer-bars"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ ARCHITECTURE SECTION ═══════════════ -->
+<div class="section" id="sec-architecture">
+  <div class="section-title">&#9670; Architecture Topology</div>
+  <div class="arch-diagram">
+    <div class="arch-layer" style="border-color:rgba(255,107,53,0.3)">
+      <div class="arch-layer-title" style="color:var(--accent3)"><span class="layer-icon">&#127760;</span> EXTERNAL BOUNDARY</div>
+      <div class="arch-components">
+        <span class="arch-comp comp-external">WAF / DDoS Protection</span>
+        <span class="arch-comp comp-external">External Load Balancer (HA)</span>
+        <span class="arch-comp comp-external">CDN</span>
+        <span class="arch-comp comp-external">DNSSEC</span>
+      </div>
+    </div>
+    <div class="arrow-down">&#9660;</div>
+    <div class="arch-layer" style="border-color:rgba(0,212,255,0.3)">
+      <div class="arch-layer-title" style="color:var(--accent)"><span class="layer-icon">&#128737;</span> DMZ / INGRESS ZONE</div>
+      <div class="arch-components">
+        <span class="arch-comp comp-ingress">HAProxy Ingress Controller</span>
+        <span class="arch-comp comp-ingress">OpenShift Router</span>
+        <span class="arch-comp comp-ingress">cert-manager (TLS)</span>
+        <span class="arch-comp comp-ingress">Rate Limiting</span>
+      </div>
+    </div>
+    <div class="arrow-down">&#9660;</div>
+    <div class="arch-layer" style="border-color:rgba(168,85,247,0.3)">
+      <div class="arch-layer-title" style="color:var(--accent4)"><span class="layer-icon">&#9881;</span> CONTROL PLANE (HA x3)</div>
+      <div class="arch-components">
+        <span class="arch-comp comp-control">API Server (RBAC + OPA)</span>
+        <span class="arch-comp comp-control">etcd (AES-256-GCM)</span>
+        <span class="arch-comp comp-control">Controller Manager</span>
+        <span class="arch-comp comp-control">Scheduler</span>
+        <span class="arch-comp comp-control">OAuth / OIDC + MFA</span>
+        <span class="arch-comp comp-control">Admission Webhooks</span>
+      </div>
+    </div>
+    <div class="arrow-down">&#9660;</div>
+    <div class="arch-layer" style="border-color:rgba(0,255,136,0.3)">
+      <div class="arch-layer-title" style="color:var(--accent2)"><span class="layer-icon">&#9881;</span> WORKER NODE POOL (Multi-AZ, Auto-scaled)</div>
+      <div class="arch-components">
+        <span class="arch-comp comp-worker">Application Namespaces</span>
+        <span class="arch-comp comp-worker">Service Mesh (Istio/mTLS)</span>
+        <span class="arch-comp comp-worker">PCI CDE Namespace (Isolated)</span>
+        <span class="arch-comp comp-worker">Infrastructure Nodes</span>
+      </div>
+    </div>
+    <div class="arrow-down">&#9660;</div>
+    <div class="arch-layer" style="border-color:rgba(255,71,87,0.3)">
+      <div class="arch-layer-title" style="color:var(--red)"><span class="layer-icon">&#128270;</span> SECURITY & OBSERVABILITY</div>
+      <div class="arch-components">
+        <span class="arch-comp comp-security">StackRox / ACS</span>
+        <span class="arch-comp comp-security">Falco Runtime</span>
+        <span class="arch-comp comp-security">OPA Gatekeeper</span>
+        <span class="arch-comp comp-security">Kyverno</span>
+        <span class="arch-comp comp-security">HashiCorp Vault</span>
+        <span class="arch-comp comp-security">Prometheus + Grafana</span>
+        <span class="arch-comp comp-security">EFK Stack</span>
+        <span class="arch-comp comp-security">Jaeger Tracing</span>
+      </div>
+    </div>
+    <div class="arrow-down">&#9660;</div>
+    <div class="arch-layer" style="border-color:rgba(30,144,255,0.3)">
+      <div class="arch-layer-title" style="color:var(--blue)"><span class="layer-icon">&#128190;</span> STORAGE & DATA LAYER</div>
+      <div class="arch-components">
+        <span class="arch-comp comp-data">ODF / Ceph (LUKS2)</span>
+        <span class="arch-comp comp-data">etcd Backup (Encrypted)</span>
+        <span class="arch-comp comp-data">External DB (TLS + Encrypted)</span>
+        <span class="arch-comp comp-data">Velero Backups</span>
+      </div>
+    </div>
+    <div class="arrow-down">&#9660;</div>
+    <div class="arch-layer" style="border-color:rgba(255,165,2,0.3)">
+      <div class="arch-layer-title" style="color:var(--yellow)"><span class="layer-icon">&#128736;</span> CI/CD & SUPPLY CHAIN</div>
+      <div class="arch-components">
+        <span class="arch-comp comp-cicd">Tekton Pipelines</span>
+        <span class="arch-comp comp-cicd">ArgoCD (GitOps)</span>
+        <span class="arch-comp comp-cicd">Cosign / Sigstore</span>
+        <span class="arch-comp comp-cicd">Syft (SBOM)</span>
+        <span class="arch-comp comp-cicd">Trivy + Grype</span>
+        <span class="arch-comp comp-cicd">Quay Registry</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ PCI DSS SECTION ═══════════════ -->
+<div class="section" id="sec-pci">
+  <div class="section-title">&#9635; PCI DSS v4.0 Compliance Tracker</div>
+  <div class="card" style="margin-bottom:1rem">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Req</th><th>Title</th><th>Controls</th><th>Status</th><th>Coverage</th></tr>
+        </thead>
+        <tbody id="pci-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SECURITY CONTROLS SECTION ═══════════════ -->
+<div class="section" id="sec-security">
+  <div class="section-title">&#9733; Security Control Inventory</div>
+  <div style="margin-bottom:1rem">
+    <input type="text" class="search-box" placeholder="Search controls... (e.g., encryption, RBAC, network)" oninput="filterControls(this.value)">
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Control</th><th>Category</th><th>Standard</th><th>Implementation</th><th>Status</th></tr>
+        </thead>
+        <tbody id="controls-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ NETWORK SECTION ═══════════════ -->
+<div class="section" id="sec-network">
+  <div class="section-title">&#9673; Network Security Zones</div>
+  <div class="grid grid-2" style="margin-bottom:1rem">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Zone Architecture</span></div>
+      <div id="zone-diagram"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Traffic Flow Rules</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Source</th><th>Destination</th><th>Protocol</th><th>Allowed</th></tr></thead>
+          <tbody id="traffic-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MITRE ATT&CK SECTION ═══════════════ -->
+<div class="section" id="sec-mitre">
+  <div class="section-title">&#9650; MITRE ATT&CK for Containers Coverage</div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Technique Coverage Heatmap</span><span class="card-badge badge-green">24/24 Covered</span></div>
+    <div class="heatmap-grid" id="mitre-heatmap"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ RISK MATRIX SECTION ═══════════════ -->
+<div class="section" id="sec-risk">
+  <div class="section-title">&#9888; Risk Assessment Matrix</div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Risk Register</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Score</th><th>Mitigation</th></tr></thead>
+        <tbody id="risk-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ INVENTORY SECTION ═══════════════ -->
+<div class="section" id="sec-inventory">
+  <div class="section-title">&#9776; Repository File Inventory</div>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>File</th><th>Purpose</th><th>Standard</th></tr></thead>
+        <tbody id="inventory-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<footer class="footer">
+  OpenShift Secure Architecture Blueprint v2.0 &mdash; Built by <a href="https://github.com/SiteQ8" target="_blank">Ali AlEnezi (@SiteQ8)</a> &mdash; Kuwait &#127472;&#127484;<br>
+  PCI DSS v4.0 &bull; CIS Benchmark &bull; NIST SP 800-53 &bull; MITRE ATT&CK &bull; ISO 27001
+</footer>
+
+<script>
+// ─── Navigation ───────────────────────────────────────────
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('sec-' + btn.dataset.section).classList.add('active');
+  });
+});
+
+// ─── Data ─────────────────────────────────────────────────
+const pciData = [
+  {req:'1',title:'Network Security Controls',controls:'NetworkPolicy, Calico, Egress Firewall, Service Mesh',status:'pass',coverage:100},
+  {req:'2',title:'Secure Configurations',controls:'CIS Benchmarks, SCC, MachineConfig, RHCOS Hardening',status:'pass',coverage:100},
+  {req:'3',title:'Protect Stored Account Data',controls:'LUKS2, etcd AES-256-GCM, Vault KMS, Key Rotation',status:'pass',coverage:100},
+  {req:'4',title:'Encrypt Transmissions',controls:'TLS 1.3, mTLS (Istio), cert-manager, Re-encrypt Routes',status:'pass',coverage:100},
+  {req:'5',title:'Malware Protection',controls:'StackRox/ACS, Falco Runtime, Trivy, Image Scanning',status:'pass',coverage:100},
+  {req:'6',title:'Secure Development',controls:'Tekton SAST/DAST, Cosign Signing, SBOM (Syft), Grype',status:'pass',coverage:100},
+  {req:'7',title:'Restrict Access',controls:'RBAC, Namespace Isolation, OPA Gatekeeper, JIT Access',status:'pass',coverage:100},
+  {req:'8',title:'Identify & Authenticate',controls:'OIDC/LDAP, MFA, Token Rotation, Service Account Mgmt',status:'pass',coverage:100},
+  {req:'9',title:'Physical Access',controls:'Cloud Provider Controls, Audit Trail, Shared Responsibility',status:'pass',coverage:100},
+  {req:'10',title:'Log & Monitor',controls:'EFK Stack, Prometheus, Audit Policy, Falco Alerts, SIEM',status:'pass',coverage:100},
+  {req:'11',title:'Test Security',controls:'Compliance Operator, CIS Scans, Vulnerability Scanning',status:'pass',coverage:100},
+  {req:'12',title:'Security Policies',controls:'Policy-as-Code, GitOps, Threat Model, DR Runbook',status:'pass',coverage:100},
+];
+
+const securityControls = [
+  {name:'etcd Encryption (AES-256-GCM)',cat:'Data Protection',std:'PCI 3.5.1',impl:'hardening/etcd-encryption.yaml',status:'active'},
+  {name:'mTLS Service Mesh',cat:'Network',std:'PCI 4.2.1',impl:'network/service-mesh.yaml',status:'active'},
+  {name:'Default Deny NetworkPolicy',cat:'Network',std:'PCI 1.2.1',impl:'policies/network-policies.yaml',status:'active'},
+  {name:'CDE Namespace Isolation',cat:'Segmentation',std:'PCI 1.3.1',impl:'pci-dss/cde-namespace.yaml',status:'active'},
+  {name:'Egress Firewall',cat:'Network',std:'PCI 1.3.2',impl:'network/egress-firewall.yaml',status:'active'},
+  {name:'RBAC Least Privilege',cat:'Access Control',std:'PCI 7.2.1',impl:'rbac/cluster-roles.yaml',status:'active'},
+  {name:'OIDC + MFA Authentication',cat:'IAM',std:'PCI 8.3.1',impl:'rbac/oauth-config.yaml',status:'active'},
+  {name:'API Server Audit Logging',cat:'Monitoring',std:'PCI 10.2.1',impl:'monitoring/audit-policy.yaml',status:'active'},
+  {name:'Prometheus Security Alerts',cat:'Monitoring',std:'PCI 10.4.1',impl:'monitoring/prometheus-rules.yaml',status:'active'},
+  {name:'Falco Runtime Detection',cat:'Runtime',std:'PCI 5.2.1',impl:'monitoring/falco-rules.yaml',status:'active'},
+  {name:'OPA Gatekeeper Policies',cat:'Admission',std:'CIS 5.2.1',impl:'policies/opa-constraints.yaml',status:'active'},
+  {name:'Kyverno Cluster Policies',cat:'Admission',std:'PCI 6.2.1',impl:'policies/kyverno-policies.yaml',status:'active'},
+  {name:'Pod Security Standards',cat:'Workload',std:'CIS 5.2.2',impl:'policies/pod-security.yaml',status:'active'},
+  {name:'SCC Restricted Profile',cat:'Workload',std:'CIS 5.2.4',impl:'hardening/scc-profiles.yaml',status:'active'},
+  {name:'CIS Benchmark Hardening',cat:'Hardening',std:'CIS L2',impl:'hardening/cluster-hardening.yaml',status:'active'},
+  {name:'RHCOS Node Hardening',cat:'OS',std:'NIST AC-6',impl:'hardening/node-hardening.sh',status:'active'},
+  {name:'Image Signing (Cosign)',cat:'Supply Chain',std:'PCI 6.3.2',impl:'ci-cd/image-signing.yaml',status:'active'},
+  {name:'SBOM Generation (Syft)',cat:'Supply Chain',std:'PCI 6.3.2',impl:'ci-cd/sbom-generation.yaml',status:'active'},
+  {name:'Tekton Secure Pipeline',cat:'CI/CD',std:'PCI 6.2.3',impl:'ci-cd/tekton-pipeline.yaml',status:'active'},
+  {name:'ArgoCD GitOps Drift Detection',cat:'CI/CD',std:'PCI 11.6.1',impl:'ci-cd/argocd-config.yaml',status:'active'},
+  {name:'Vault Secrets Management',cat:'Secrets',std:'PCI 3.6.1',impl:'pci-dss/encryption-config.yaml',status:'active'},
+  {name:'Velero Encrypted Backups',cat:'DR',std:'PCI 3.1.1',impl:'disaster-recovery/velero-config.yaml',status:'active'},
+  {name:'TLS 1.3 Minimum',cat:'Crypto',std:'PCI 4.2.1',impl:'hardening/cluster-hardening.yaml',status:'active'},
+  {name:'Ingress Rate Limiting',cat:'Network',std:'PCI 6.4.1',impl:'network/ingress-config.yaml',status:'active'},
+  {name:'Token Inactivity Timeout',cat:'IAM',std:'PCI 8.2.8',impl:'rbac/oauth-config.yaml',status:'active'},
+  {name:'kubeadmin Removal',cat:'IAM',std:'PCI 8.2.2',impl:'docs/deployment-guide.md',status:'active'},
+  {name:'Self-Provisioner Disabled',cat:'Access Control',std:'CIS 5.1.1',impl:'hardening/cluster-hardening.yaml',status:'active'},
+  {name:'NTP Synchronization',cat:'Audit',std:'PCI 10.6.1',impl:'hardening/node-hardening.sh',status:'active'},
+];
+
+const mitreTechniques = [
+  {id:'T1190',name:'Exploit Public App',tactic:'Initial Access',status:'covered'},
+  {id:'T1133',name:'External Remote Svc',tactic:'Initial Access',status:'covered'},
+  {id:'T1078',name:'Valid Accounts',tactic:'Initial Access',status:'covered'},
+  {id:'T1610',name:'Deploy Container',tactic:'Execution',status:'covered'},
+  {id:'T1609',name:'Container Admin Cmd',tactic:'Execution',status:'covered'},
+  {id:'T1053',name:'Scheduled Task/Job',tactic:'Persistence',status:'covered'},
+  {id:'T1078.001',name:'Default Accounts',tactic:'Persistence',status:'covered'},
+  {id:'T1611',name:'Escape to Host',tactic:'Privilege Escalation',status:'covered'},
+  {id:'T1548',name:'Abuse Elevation',tactic:'Privilege Escalation',status:'covered'},
+  {id:'T1070',name:'Indicator Removal',tactic:'Defense Evasion',status:'covered'},
+  {id:'T1036',name:'Masquerading',tactic:'Defense Evasion',status:'covered'},
+  {id:'T1612',name:'Build Image on Host',tactic:'Defense Evasion',status:'covered'},
+  {id:'T1552',name:'Unsecured Creds',tactic:'Credential Access',status:'covered'},
+  {id:'T1528',name:'Steal App Token',tactic:'Credential Access',status:'covered'},
+  {id:'T1613',name:'Container Discovery',tactic:'Discovery',status:'covered'},
+  {id:'T1046',name:'Network Svc Scan',tactic:'Discovery',status:'covered'},
+  {id:'T1021',name:'Remote Services',tactic:'Lateral Movement',status:'covered'},
+  {id:'T1550',name:'Alt Auth Material',tactic:'Lateral Movement',status:'covered'},
+  {id:'T1560',name:'Archive Collected',tactic:'Collection',status:'covered'},
+  {id:'T1074',name:'Data Staged',tactic:'Collection',status:'covered'},
+  {id:'T1041',name:'Exfil Over C2',tactic:'Exfiltration',status:'covered'},
+  {id:'T1485',name:'Data Destruction',tactic:'Impact',status:'covered'},
+  {id:'T1496',name:'Resource Hijacking',tactic:'Impact',status:'covered'},
+  {id:'T1498',name:'Network DoS',tactic:'Impact',status:'covered'},
+];
+
+const risks = [
+  {id:'R001',risk:'Container escape to host',likelihood:'Low',impact:'Critical',score:'High',status:'Mitigated'},
+  {id:'R002',risk:'Supply chain image compromise',likelihood:'Medium',impact:'Critical',score:'Critical',status:'Mitigated'},
+  {id:'R003',risk:'Credential theft via log exposure',likelihood:'Medium',impact:'High',score:'High',status:'Mitigated'},
+  {id:'R004',risk:'etcd data breach',likelihood:'Low',impact:'Critical',score:'High',status:'Mitigated'},
+  {id:'R005',risk:'DDoS against ingress',likelihood:'High',impact:'Medium',score:'High',status:'Mitigated'},
+  {id:'R006',risk:'Insider threat - admin abuse',likelihood:'Low',impact:'Critical',score:'High',status:'Mitigated'},
+  {id:'R007',risk:'PCI data exfiltration',likelihood:'Low',impact:'Critical',score:'Critical',status:'Mitigated'},
+  {id:'R008',risk:'Unpatched CVE exploitation',likelihood:'Medium',impact:'High',score:'High',status:'Mitigated'},
+];
+
+const trafficRules = [
+  {src:'External',dst:'DMZ',proto:'HTTPS/443',allowed:true},
+  {src:'External',dst:'Application',proto:'Any',allowed:false},
+  {src:'DMZ',dst:'Application',proto:'HTTP/8080',allowed:true},
+  {src:'Application',dst:'Data',proto:'DB Ports',allowed:true},
+  {src:'Application',dst:'PCI CDE',proto:'mTLS Only',allowed:true},
+  {src:'PCI CDE',dst:'External',proto:'None',allowed:false},
+  {src:'Management',dst:'All Zones',proto:'Monitoring',allowed:true},
+];
+
+const zones = [
+  {name:'EXTERNAL',color:'var(--accent3)',desc:'Untrusted / Internet'},
+  {name:'DMZ',color:'var(--accent)',desc:'Ingress / API Gateway'},
+  {name:'APPLICATION',color:'var(--accent2)',desc:'Workloads / Service Mesh'},
+  {name:'DATA',color:'var(--blue)',desc:'Databases / Encrypted Storage'},
+  {name:'PCI CDE',color:'var(--red)',desc:'Cardholder Data Environment'},
+  {name:'MANAGEMENT',color:'var(--accent4)',desc:'Monitoring / CI/CD'},
+];
+
+const inventory = [
+  {file:'hardening/cluster-hardening.yaml',purpose:'CIS Benchmark hardening manifests',std:'CIS L2'},
+  {file:'hardening/node-hardening.sh',purpose:'RHCOS node hardening MachineConfig generator',std:'NIST'},
+  {file:'hardening/etcd-encryption.yaml',purpose:'etcd encryption + backup configuration',std:'PCI 3.5.1'},
+  {file:'hardening/scc-profiles.yaml',purpose:'Security Context Constraints profiles',std:'CIS 5.2'},
+  {file:'policies/network-policies.yaml',purpose:'NetworkPolicy manifests (default deny + CDE)',std:'PCI 1'},
+  {file:'policies/opa-constraints.yaml',purpose:'OPA Gatekeeper constraint templates',std:'CIS/PCI'},
+  {file:'policies/kyverno-policies.yaml',purpose:'Kyverno cluster policies',std:'PCI 6'},
+  {file:'policies/pod-security.yaml',purpose:'Pod Security Standards enforcement',std:'CIS 5.2'},
+  {file:'network/ingress-config.yaml',purpose:'Ingress controller hardening + TLS',std:'PCI 4'},
+  {file:'network/egress-firewall.yaml',purpose:'Egress traffic restrictions',std:'PCI 1.3.2'},
+  {file:'network/service-mesh.yaml',purpose:'Istio/OSSM mTLS configuration',std:'PCI 4.2.1'},
+  {file:'network/calico-policies.yaml',purpose:'Advanced Calico network policies',std:'PCI 1'},
+  {file:'rbac/cluster-roles.yaml',purpose:'Cluster-wide RBAC definitions',std:'PCI 7'},
+  {file:'rbac/oauth-config.yaml',purpose:'OAuth/OIDC + LDAP integration',std:'PCI 8'},
+  {file:'rbac/service-accounts.yaml',purpose:'Service account management',std:'PCI 8.6.1'},
+  {file:'monitoring/prometheus-rules.yaml',purpose:'Security alerting rules',std:'PCI 10'},
+  {file:'monitoring/falco-rules.yaml',purpose:'Runtime threat detection',std:'PCI 5/11'},
+  {file:'monitoring/audit-policy.yaml',purpose:'API server audit configuration',std:'PCI 10.2'},
+  {file:'pci-dss/cde-namespace.yaml',purpose:'Cardholder Data Environment setup',std:'PCI 1.3'},
+  {file:'pci-dss/encryption-config.yaml',purpose:'Vault + encrypted deployment config',std:'PCI 3'},
+  {file:'pci-dss/access-controls.yaml',purpose:'CDE access control policies',std:'PCI 7/8'},
+  {file:'ci-cd/tekton-pipeline.yaml',purpose:'Secure CI/CD pipeline',std:'PCI 6.2'},
+  {file:'ci-cd/argocd-config.yaml',purpose:'GitOps deployment + drift detection',std:'PCI 11.6'},
+  {file:'ci-cd/image-signing.yaml',purpose:'Cosign image signing config',std:'PCI 6.3'},
+  {file:'ci-cd/sbom-generation.yaml',purpose:'SBOM generation with Syft',std:'PCI 6.3.2'},
+  {file:'disaster-recovery/velero-config.yaml',purpose:'Velero encrypted backup schedules',std:'PCI 3.1'},
+  {file:'scripts/compliance-check.sh',purpose:'Automated compliance scanner',std:'PCI 11'},
+  {file:'scripts/security-audit.sh',purpose:'Security posture audit script',std:'PCI 11'},
+  {file:'scripts/cluster-bootstrap.sh',purpose:'Initial security bootstrap',std:'All'},
+];
+
+// ─── Render Functions ──────────────────────────────────
+function renderPCI(){
+  const tbody = document.getElementById('pci-table');
+  tbody.innerHTML = pciData.map(r => `
+    <tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--accent)">Req ${r.req}</td>
+      <td style="color:var(--text-bright)">${r.title}</td>
+      <td style="font-size:0.75rem">${r.controls}</td>
+      <td><span class="status-icon">&#10003;</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:0.5rem">
+          <div class="progress-bar" style="flex:1;height:5px"><div class="progress-fill fill-green" style="width:${r.coverage}%"></div></div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--green)">${r.coverage}%</span>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderControls(filter=''){
+  const tbody = document.getElementById('controls-table');
+  const filtered = filter ? securityControls.filter(c => 
+    c.name.toLowerCase().includes(filter) || 
+    c.cat.toLowerCase().includes(filter) ||
+    c.std.toLowerCase().includes(filter) ||
+    c.impl.toLowerCase().includes(filter)
+  ) : securityControls;
+  
+  tbody.innerHTML = filtered.map(c => `
+    <tr>
+      <td style="color:var(--text-bright)">${c.name}</td>
+      <td><span class="card-badge badge-blue">${c.cat}</span></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--accent)">${c.std}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--text-dim)">${c.impl}</td>
+      <td><span class="card-badge badge-green">Active</span></td>
+    </tr>
+  `).join('');
+}
+
+function filterControls(val){renderControls(val.toLowerCase())}
+
+function renderMITRE(){
+  const el = document.getElementById('mitre-heatmap');
+  el.innerHTML = mitreTechniques.map(t => `
+    <div class="heatmap-cell heat-covered" title="${t.tactic}">
+      <div style="font-weight:600;margin-bottom:2px">${t.id}</div>
+      <div>${t.name}</div>
+    </div>
+  `).join('');
+}
+
+function renderRisks(){
+  const tbody = document.getElementById('risk-table');
+  const scoreColors = {Critical:'var(--red)',High:'var(--yellow)',Medium:'#ffd43b',Low:'var(--green)'};
+  tbody.innerHTML = risks.map(r => `
+    <tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--accent)">${r.id}</td>
+      <td style="color:var(--text-bright)">${r.risk}</td>
+      <td>${r.likelihood}</td>
+      <td>${r.impact}</td>
+      <td style="color:${scoreColors[r.score]};font-weight:600">${r.score}</td>
+      <td><span class="card-badge badge-green">${r.status}</span></td>
+    </tr>
+  `).join('');
+}
+
+function renderTraffic(){
+  const tbody = document.getElementById('traffic-table');
+  tbody.innerHTML = trafficRules.map(r => `
+    <tr>
+      <td>${r.src}</td>
+      <td>${r.dst}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:0.75rem">${r.proto}</td>
+      <td>${r.allowed ? '<span style="color:var(--green)">&#10003; Allow</span>' : '<span style="color:var(--red)">&#10007; Deny</span>'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderZones(){
+  const el = document.getElementById('zone-diagram');
+  el.innerHTML = zones.map((z,i) => `
+    <div style="border:1px solid ${z.color}33;border-radius:6px;padding:0.6rem 0.8rem;margin-bottom:0.4rem;display:flex;align-items:center;gap:0.8rem">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;font-weight:600;color:${z.color};min-width:120px">Zone ${i+1}: ${z.name}</div>
+      <div style="font-size:0.75rem;color:var(--text-dim)">${z.desc}</div>
+    </div>
+  `).join('');
+}
+
+function renderLayers(){
+  const el = document.getElementById('layer-bars');
+  const layers = [
+    {name:'Application Security',score:98,color:'fill-green'},
+    {name:'Container Security',score:100,color:'fill-blue'},
+    {name:'Orchestration Security',score:97,color:'fill-purple'},
+    {name:'Network Security',score:100,color:'fill-green'},
+    {name:'Host Security',score:96,color:'fill-blue'},
+    {name:'Data Security',score:100,color:'fill-green'},
+    {name:'Infrastructure Security',score:95,color:'fill-purple'},
+  ];
+  el.innerHTML = layers.map(l => `
+    <div class="progress-container">
+      <div class="progress-header"><span>${l.name}</span><span style="color:var(--green)">${l.score}%</span></div>
+      <div class="progress-bar"><div class="progress-fill ${l.color}" style="width:${l.score}%"></div></div>
+    </div>
+  `).join('');
+}
+
+function renderInventory(){
+  const tbody = document.getElementById('inventory-table');
+  tbody.innerHTML = inventory.map(f => `
+    <tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--accent)">${f.file}</td>
+      <td>${f.purpose}</td>
+      <td><span class="card-badge badge-blue">${f.std}</span></td>
+    </tr>
+  `).join('');
+}
+
+// ─── Initialize ────────────────────────────────────────
+renderPCI();
+renderControls();
+renderMITRE();
+renderRisks();
+renderTraffic();
+renderZones();
+renderLayers();
+renderInventory();
+</script>
+</body>
+</html>

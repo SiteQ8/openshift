@@ -1,0 +1,209 @@
+# =============================================================================
+# Kyverno Cluster Policies - Enterprise Security Blueprint
+# Author: Ali AlEnezi (@SiteQ8)
+# =============================================================================
+
+---
+# Require Network Policy in every namespace
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-networkpolicy
+  annotations:
+    policies.kyverno.io/title: Require Network Policy
+    policies.kyverno.io/category: Security
+    policies.kyverno.io/severity: high
+    compliance.pci-dss/requirement: "1.2.1"
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-networkpolicy
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.name }}"
+            operator: NotIn
+            value: ["kube-system", "kube-public", "kube-node-lease", "default"]
+      validate:
+        message: "Every namespace must have at least one NetworkPolicy. Create a default-deny policy."
+        deny:
+          conditions:
+            all:
+              - key: "{{ request.object.metadata.annotations.\"network-policy/configured\" || 'false' }}"
+                operator: NotEquals
+                value: "true"
+
+---
+# Auto-generate default deny NetworkPolicy for new namespaces
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: generate-default-deny
+  annotations:
+    policies.kyverno.io/title: Generate Default Deny Network Policy
+    policies.kyverno.io/category: Networking
+spec:
+  rules:
+    - name: generate-default-deny-netpol
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - openshift-*
+      generate:
+        synchronize: true
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        name: default-deny-all
+        namespace: "{{ request.object.metadata.name }}"
+        data:
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Ingress
+              - Egress
+
+---
+# Disallow default service account usage
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-default-serviceaccount
+  annotations:
+    policies.kyverno.io/title: Disallow Default Service Account
+    policies.kyverno.io/category: Security
+    policies.kyverno.io/severity: medium
+    compliance.pci-dss/requirement: "7.2.1"
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-sa
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - openshift-*
+      validate:
+        message: "Using the 'default' service account is not allowed. Create a dedicated service account."
+        pattern:
+          spec:
+            serviceAccountName: "!default"
+
+---
+# Require Probes for production workloads
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-probes
+  annotations:
+    policies.kyverno.io/title: Require Liveness and Readiness Probes
+    policies.kyverno.io/category: Best Practices
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: require-liveness-probe
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+              namespaceSelector:
+                matchLabels:
+                  environment: production
+      validate:
+        message: "Liveness probes are required for production deployments."
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - livenessProbe:
+                      "?*": "?*"
+    - name: require-readiness-probe
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+              namespaceSelector:
+                matchLabels:
+                  environment: production
+      validate:
+        message: "Readiness probes are required for production deployments."
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - readinessProbe:
+                      "?*": "?*"
+
+---
+# Restrict image pull policy
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-always-pull
+  annotations:
+    policies.kyverno.io/title: Require Always Pull Images
+    policies.kyverno.io/category: Security
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: require-always-pull
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "imagePullPolicy must be set to 'Always' for security."
+        pattern:
+          spec:
+            containers:
+              - imagePullPolicy: Always
+
+---
+# Add security labels automatically
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: add-security-labels
+  annotations:
+    policies.kyverno.io/title: Add Security Labels
+spec:
+  rules:
+    - name: add-managed-by-label
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+                - DaemonSet
+      mutate:
+        patchStrategicMerge:
+          metadata:
+            labels:
+              security.openshift.io/scanned: "pending"
+              security.openshift.io/policy-version: "2.0"

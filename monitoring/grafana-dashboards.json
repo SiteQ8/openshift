@@ -1,0 +1,97 @@
+{
+  "dashboard": {
+    "title": "OpenShift Security Dashboard - PCI DSS Compliance",
+    "uid": "openshift-security-pci",
+    "tags": ["security", "pci-dss", "openshift", "compliance"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "panels": [
+      {
+        "title": "Failed Authentication Attempts (5m rate)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(rate(apiserver_authentication_attempts{result=\"failure\"}[5m]))",
+            "legendFormat": "Failed Auths/sec"
+          }
+        ]
+      },
+      {
+        "title": "Privileged Containers Running",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "count(kube_pod_spec_containers_security_context_privileged{} == 1) or vector(0)"
+          }
+        ],
+        "thresholds": { "steps": [
+          { "color": "green", "value": 0 },
+          { "color": "red", "value": 1 }
+        ]}
+      },
+      {
+        "title": "Network Policy Violations",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "increase(ovnkube_controller_network_policy_violations_total[5m])",
+            "legendFormat": "Violations"
+          }
+        ]
+      },
+      {
+        "title": "PCI CDE Pod Status",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "targets": [
+          {
+            "expr": "kube_pod_status_phase{namespace=\"pci-cde\"}",
+            "format": "table",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "title": "API Server Request Latency (99th percentile)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, rate(apiserver_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p99 Latency"
+          }
+        ]
+      },
+      {
+        "title": "Certificate Expiry (Days)",
+        "type": "bargauge",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "targets": [
+          {
+            "expr": "(certmanager_certificate_expiration_timestamp_seconds - time()) / 86400",
+            "legendFormat": "{{ name }}"
+          }
+        ],
+        "thresholds": { "steps": [
+          { "color": "red", "value": 0 },
+          { "color": "yellow", "value": 30 },
+          { "color": "green", "value": 90 }
+        ]}
+      },
+      {
+        "title": "Falco Alerts (1h)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+        "targets": [
+          {
+            "expr": "increase(falco_events{priority=~\"Critical|Warning\"}[1h])",
+            "legendFormat": "{{ rule }} ({{ priority }})"
+          }
+        ]
+      }
+    ]
+  }
+}

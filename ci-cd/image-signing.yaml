@@ -1,0 +1,26 @@
+# =============================================================================
+# Image Signing Configuration (Cosign/Sigstore)
+# Author: Ali AlEnezi (@SiteQ8)
+# =============================================================================
+
+---
+# ClusterImagePolicy to enforce signed images
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: require-signed-images
+spec:
+  images:
+    - glob: "quay.io/enterprise/**"
+    - glob: "image-registry.openshift-image-registry.svc:5000/**"
+  authorities:
+    - keyless:
+        url: https://fulcio.sigstore.dev
+        identities:
+          - issuer: https://sso.enterprise.example.com
+            subject: "ci-cd@enterprise.example.com"
+    - key:
+        data: |
+          -----BEGIN PUBLIC KEY-----
+          <COSIGN_PUBLIC_KEY>
+          -----END PUBLIC KEY-----
