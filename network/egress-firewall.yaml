@@ -1,0 +1,133 @@
+# =============================================================================
+# Egress Firewall Configuration
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 1.3.2 - Outbound CDE Traffic Restriction
+# =============================================================================
+
+---
+# Production namespace egress firewall
+apiVersion: k8s.ovn.org/v1
+kind: EgressFirewall
+metadata:
+  name: production-egress
+  namespace: app-production
+spec:
+  egress:
+    # Allow DNS
+    - type: Allow
+      to:
+        cidrSelector: 10.0.0.0/8
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow internal cluster communication
+    - type: Allow
+      to:
+        cidrSelector: 172.30.0.0/16
+    # Allow access to internal databases
+    - type: Allow
+      to:
+        cidrSelector: 10.10.0.0/16
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+    # Allow HTTPS to specific external services
+    - type: Allow
+      to:
+        dnsName: api.payment-gateway.example.com
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow access to Vault
+    - type: Allow
+      to:
+        dnsName: vault.enterprise.example.com
+      ports:
+        - protocol: TCP
+          port: 8200
+    # Deny all other egress
+    - type: Deny
+      to:
+        cidrSelector: 0.0.0.0/0
+
+---
+# PCI CDE namespace - Maximum egress restriction
+apiVersion: k8s.ovn.org/v1
+kind: EgressFirewall
+metadata:
+  name: pci-cde-egress
+  namespace: pci-cde
+  labels:
+    compliance.pci-dss/requirement: "1.3.2"
+spec:
+  egress:
+    # Allow DNS (internal only)
+    - type: Allow
+      to:
+        cidrSelector: 10.0.0.0/8
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow cluster service network
+    - type: Allow
+      to:
+        cidrSelector: 172.30.0.0/16
+    # Allow payment processor ONLY
+    - type: Allow
+      to:
+        dnsName: secure-api.payment-processor.example.com
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow Vault for secrets
+    - type: Allow
+      to:
+        dnsName: vault.enterprise.example.com
+      ports:
+        - protocol: TCP
+          port: 8200
+    # DENY ALL other egress - no internet access from CDE
+    - type: Deny
+      to:
+        cidrSelector: 0.0.0.0/0
+
+---
+# Management namespace egress
+apiVersion: k8s.ovn.org/v1
+kind: EgressFirewall
+metadata:
+  name: management-egress
+  namespace: openshift-monitoring
+spec:
+  egress:
+    # Allow internal monitoring targets
+    - type: Allow
+      to:
+        cidrSelector: 10.0.0.0/8
+    # Allow cluster network
+    - type: Allow
+      to:
+        cidrSelector: 172.30.0.0/16
+    # Allow alerting endpoints
+    - type: Allow
+      to:
+        dnsName: pagerduty.com
+      ports:
+        - protocol: TCP
+          port: 443
+    - type: Allow
+      to:
+        dnsName: events.pagerduty.com
+      ports:
+        - protocol: TCP
+          port: 443
+    # Deny all other
+    - type: Deny
+      to:
+        cidrSelector: 0.0.0.0/0

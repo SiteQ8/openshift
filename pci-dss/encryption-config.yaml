@@ -1,0 +1,110 @@
+# =============================================================================
+# PCI DSS Encryption Configuration
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 3, 4
+# =============================================================================
+
+---
+# Vault Agent Injector for PCI CDE pods
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: pci-cde
+  labels:
+    app: payment-service
+    pci-dss/workload-type: "payment-processing"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        pci-dss/workload-type: "payment-processing"
+        pci-dss/cde-access: "true"
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "pci-cde-payment"
+        vault.hashicorp.com/agent-inject-secret-db-creds: "pci-cde/data/database"
+        vault.hashicorp.com/agent-inject-template-db-creds: |
+          {{- with secret "pci-cde/data/database" -}}
+          export DB_HOST="{{ .Data.data.host }}"
+          export DB_PORT="{{ .Data.data.port }}"
+          export DB_NAME="{{ .Data.data.name }}"
+          export DB_USER="{{ .Data.data.username }}"
+          export DB_PASS="{{ .Data.data.password }}"
+          {{- end }}
+        vault.hashicorp.com/agent-inject-secret-encryption-key: "pci-cde/data/encryption"
+        vault.hashicorp.com/tls-skip-verify: "false"
+    spec:
+      serviceAccountName: payment-service
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: payment-service
+          image: quay.io/enterprise/payment-service:v2.1.0-signed
+          ports:
+            - containerPort: 8443
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: tls-certs
+              mountPath: /etc/tls
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+        - name: tls-certs
+          secret:
+            secretName: payment-service-tls
+      nodeSelector:
+        node-role.kubernetes.io/pci-cde: "true"
+      tolerations:
+        - key: pci-cde
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: payment-service
+              topologyKey: kubernetes.io/hostname

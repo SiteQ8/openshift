@@ -1,0 +1,122 @@
+# =============================================================================
+# Calico Network Policies (Advanced)
+# Author: Ali AlEnezi (@SiteQ8)
+# For clusters using Calico CNI instead of OVN-Kubernetes
+# =============================================================================
+
+---
+# Global default deny
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  selector: all()
+  types:
+    - Ingress
+    - Egress
+
+---
+# Allow DNS globally
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-dns
+spec:
+  selector: all()
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports:
+          - 53
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 53
+
+---
+# PCI CDE Zone microsegmentation
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: pci-cde-microsegmentation
+  namespace: pci-cde
+spec:
+  selector: pci-dss/workload-type == "payment-processing"
+  types:
+    - Ingress
+    - Egress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: pci-dss/cde-access == "true"
+        namespaceSelector: pci-dss/zone == "application"
+      destination:
+        ports:
+          - 8443
+    - action: Deny
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: pci-dss/workload-type == "database"
+        namespaceSelector: pci-dss/zone == "data"
+        ports:
+          - 5432
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.0.0.0/8
+        ports:
+          - 8200  # Vault
+    - action: Deny
+
+---
+# Deep packet inspection for CDE traffic
+apiVersion: projectcalico.org/v3
+kind: DeepPacketInspection
+metadata:
+  name: pci-cde-dpi
+  namespace: pci-cde
+spec:
+  selector: pci-dss/workload-type == "payment-processing"
+
+---
+# Threat feeds integration
+apiVersion: projectcalico.org/v3
+kind: GlobalThreatFeed
+metadata:
+  name: malicious-ips
+spec:
+  pull:
+    http:
+      url: https://threatfeeds.enterprise.example.com/blocklist.txt
+  globalNetworkSet:
+    labels:
+      threat-feed: malicious-ips
+
+---
+# Block traffic to/from threat feed IPs
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: block-threat-feeds
+spec:
+  selector: all()
+  types:
+    - Ingress
+    - Egress
+  ingress:
+    - action: Deny
+      source:
+        selector: threat-feed == "malicious-ips"
+  egress:
+    - action: Deny
+      destination:
+        selector: threat-feed == "malicious-ips"

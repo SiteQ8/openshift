@@ -1,0 +1,34 @@
+# =============================================================================
+# Namespace-Scoped RBAC Roles
+# Author: Ali AlEnezi (@SiteQ8)
+# =============================================================================
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-team-developers
+  namespace: app-production
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: namespace-developer
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: dev-team-a
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pci-cde-admins
+  namespace: pci-cde
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pci-cde-admin
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: pci-admin-team

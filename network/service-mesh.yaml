@@ -1,0 +1,138 @@
+# =============================================================================
+# Service Mesh (Istio/OSSM) Configuration
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 4.2.1 - Encrypt Transmissions
+# =============================================================================
+
+---
+# Service Mesh Control Plane
+apiVersion: maistra.io/v2
+kind: ServiceMeshControlPlane
+metadata:
+  name: secure-mesh
+  namespace: istio-system
+spec:
+  version: v2.4
+  security:
+    dataPlane:
+      mtls: true
+      automtls: true
+    controlPlane:
+      mtls: true
+    certificateAuthority:
+      type: Istiod
+      istiod:
+        type: PrivateKey
+        privateKey:
+          rootCADir: /etc/cacerts
+    identity:
+      type: ThirdParty
+  proxy:
+    accessLogging:
+      file:
+        name: /dev/stdout
+        encoding: JSON
+    networking:
+      dns:
+        refreshRate: 300s
+  gateways:
+    ingress:
+      service:
+        type: ClusterIP
+      volumes:
+        - volume:
+            secret:
+              secretName: istio-ingressgateway-certs
+          volumeMount:
+            mountPath: /etc/istio/ingressgateway-certs
+  tracing:
+    type: Jaeger
+    sampling: 10000  # 100% sampling for PCI audit
+  addons:
+    grafana:
+      enabled: true
+    kiali:
+      enabled: true
+    jaeger:
+      name: jaeger
+      install:
+        storage:
+          type: Elasticsearch
+          elasticsearch:
+            nodeCount: 3
+            redundancyPolicy: SingleRedundancy
+            storage:
+              size: 50Gi
+              storageClassName: ocs-storagecluster-ceph-rbd
+
+---
+# Strict mTLS PeerAuthentication (mesh-wide)
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT
+
+---
+# PCI CDE specific PeerAuthentication
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: pci-cde-strict
+  namespace: pci-cde
+spec:
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    8443:
+      mode: STRICT
+
+---
+# Authorization Policy - PCI CDE access control
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: pci-cde-auth
+  namespace: pci-cde
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["app-production"]
+            principals: ["cluster.local/ns/app-production/sa/payment-service"]
+      to:
+        - operation:
+            methods: ["POST", "GET"]
+            paths: ["/api/v1/payment/*"]
+            ports: ["8443"]
+
+---
+# Deny all other traffic to PCI CDE
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: pci-cde-deny-all
+  namespace: pci-cde
+spec:
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notNamespaces: ["app-production", "istio-system"]
+
+---
+# Service Mesh Member Roll
+apiVersion: maistra.io/v1
+kind: ServiceMeshMemberRoll
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  members:
+    - app-production
+    - pci-cde
+    - app-staging

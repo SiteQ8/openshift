@@ -1,0 +1,161 @@
+# =============================================================================
+# Prometheus Security Alerting Rules
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 10 - Log and Monitor
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: security-alerts
+  namespace: openshift-monitoring
+  labels:
+    role: alert-rules
+    compliance.pci-dss/requirement: "10.4.1,10.7.1"
+spec:
+  groups:
+    # ─── Authentication & Access Alerts ─────────────────────────
+    - name: authentication-security
+      interval: 30s
+      rules:
+        - alert: HighFailedAuthenticationRate
+          expr: |
+            sum(rate(apiserver_authentication_attempts{result="failure"}[5m])) > 10
+          for: 2m
+          labels:
+            severity: critical
+            pci_requirement: "8.3.1"
+          annotations:
+            summary: "High rate of failed authentication attempts detected"
+            description: "More than 10 failed auth attempts per second over 5 minutes. Possible brute-force attack."
+            runbook_url: "https://wiki.enterprise.example.com/runbooks/auth-bruteforce"
+
+        - alert: UnauthorizedAPIAccess
+          expr: |
+            sum(rate(apiserver_request_total{code=~"403|401"}[5m])) by (user) > 5
+          for: 3m
+          labels:
+            severity: warning
+            pci_requirement: "7.2.4"
+          annotations:
+            summary: "Multiple unauthorized API access attempts by {{ $labels.user }}"
+            description: "User {{ $labels.user }} has made more than 5 unauthorized requests in 5 minutes."
+
+    # ─── Cluster Security Alerts ────────────────────────────────
+    - name: cluster-security
+      interval: 60s
+      rules:
+        - alert: PrivilegedContainerDetected
+          expr: |
+            count(kube_pod_container_info{container!=""} and on(pod,namespace) kube_pod_spec_containers_security_context_privileged{} == 1) > 0
+          for: 1m
+          labels:
+            severity: critical
+            pci_requirement: "2.2.4"
+          annotations:
+            summary: "Privileged container detected in cluster"
+            description: "A container is running in privileged mode, violating security policy."
+
+        - alert: PodRunningAsRoot
+          expr: |
+            count(kube_pod_container_info{container!=""} and on(pod,namespace) kube_pod_container_status_running{} == 1) by (namespace,pod) unless on(pod,namespace) kube_pod_spec_containers_security_context_run_as_non_root{} == 1 > 0
+          for: 5m
+          labels:
+            severity: warning
+            pci_requirement: "2.2.4"
+          annotations:
+            summary: "Pod running as root user detected"
+
+        - alert: EtcdInsufficientMembers
+          expr: |
+            count(etcd_server_has_leader) < 3
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "etcd cluster has fewer than 3 healthy members"
+            description: "etcd quorum is at risk. Investigate immediately."
+
+    # ─── Network Security Alerts ────────────────────────────────
+    - name: network-security
+      interval: 30s
+      rules:
+        - alert: NetworkPolicyViolation
+          expr: |
+            increase(ovnkube_controller_network_policy_violations_total[5m]) > 0
+          for: 1m
+          labels:
+            severity: warning
+            pci_requirement: "1.2.1"
+          annotations:
+            summary: "Network policy violations detected"
+            description: "Traffic has been blocked by NetworkPolicy rules."
+
+        - alert: UnexpectedEgressTraffic
+          expr: |
+            sum(rate(container_network_transmit_bytes_total{namespace="pci-cde"}[5m])) > 1048576
+          for: 5m
+          labels:
+            severity: critical
+            pci_requirement: "1.3.2"
+          annotations:
+            summary: "Unexpected high egress traffic from PCI CDE namespace"
+            description: "PCI CDE namespace is transmitting more than 1MB/s. Possible data exfiltration."
+
+    # ─── PCI CDE Specific Alerts ────────────────────────────────
+    - name: pci-cde-monitoring
+      interval: 30s
+      rules:
+        - alert: PCICDEPodRestart
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="pci-cde"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+            pci_requirement: "10.7.1"
+          annotations:
+            summary: "PCI CDE pod {{ $labels.pod }} restarting frequently"
+
+        - alert: PCICDEResourceQuotaExceeded
+          expr: |
+            kube_resourcequota{namespace="pci-cde",type="used"} / kube_resourcequota{namespace="pci-cde",type="hard"} > 0.85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PCI CDE namespace approaching resource quota limit"
+
+    # ─── Compliance & Audit Alerts ──────────────────────────────
+    - name: compliance-monitoring
+      interval: 120s
+      rules:
+        - alert: AuditLogFailure
+          expr: |
+            absent(apiserver_audit_event_total) == 1
+          for: 5m
+          labels:
+            severity: critical
+            pci_requirement: "10.7.1"
+          annotations:
+            summary: "API server audit logging has stopped"
+            description: "Critical compliance control failure. Audit logging must be restored immediately."
+
+        - alert: CertificateExpiringSoon
+          expr: |
+            (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 30
+          for: 1h
+          labels:
+            severity: warning
+            pci_requirement: "4.2.1"
+          annotations:
+            summary: "Certificate {{ $labels.name }} expires in less than 30 days"
+
+        - alert: ImageNotSigned
+          expr: |
+            increase(admission_webhook_rejection_count{webhook="image-signature-validator"}[1h]) > 0
+          for: 5m
+          labels:
+            severity: warning
+            pci_requirement: "6.3.2"
+          annotations:
+            summary: "Unsigned container image deployment attempted"

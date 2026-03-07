@@ -1,0 +1,214 @@
+# =============================================================================
+# OpenShift Network Policies - Enterprise Security Blueprint
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 1 - Network Security Controls
+# =============================================================================
+
+---
+# Default Deny All - Applied to every namespace
+# PCI DSS 1.2.1: Restrict inbound and outbound traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: default
+  labels:
+    security.openshift.io/policy: "default-deny"
+    compliance.pci-dss/requirement: "1.2.1"
+  annotations:
+    description: "Default deny all ingress and egress traffic"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# Allow DNS Resolution (required for all namespaces)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: default
+  labels:
+    security.openshift.io/policy: "dns-allow"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+
+---
+# Allow ingress from OpenShift Router only
+# PCI DSS 1.3.1: Inbound traffic to CDE restricted
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-openshift-ingress
+  namespace: default
+  labels:
+    security.openshift.io/policy: "ingress-allow"
+    compliance.pci-dss/requirement: "1.3.1"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: "web"
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+
+---
+# Allow monitoring from Prometheus
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring
+  namespace: default
+  labels:
+    security.openshift.io/policy: "monitoring-allow"
+    compliance.pci-dss/requirement: "10.4.1"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-monitoring
+      ports:
+        - protocol: TCP
+          port: 8443
+        - protocol: TCP
+          port: 9090
+
+---
+# PCI CDE Namespace - Strict Isolation
+# PCI DSS 1.3.1, 1.3.2: Restrict CDE inbound/outbound
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pci-cde-strict-isolation
+  namespace: pci-cde
+  labels:
+    security.openshift.io/policy: "pci-cde-isolation"
+    compliance.pci-dss/requirement: "1.3.1,1.3.2"
+  annotations:
+    description: "Strict network isolation for PCI Cardholder Data Environment"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only allow traffic from designated application namespace via specific port
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              pci-dss/zone: "application"
+          podSelector:
+            matchLabels:
+              pci-dss/cde-access: "true"
+      ports:
+        - protocol: TCP
+          port: 8443
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+    # Allow communication to encrypted database only
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              pci-dss/zone: "data"
+      ports:
+        - protocol: TCP
+          port: 5432  # PostgreSQL
+        - protocol: TCP
+          port: 3306  # MySQL
+
+---
+# Inter-namespace communication policy (application tier)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: app-tier-policy
+  namespace: app-production
+  labels:
+    security.openshift.io/policy: "app-tier"
+spec:
+  podSelector:
+    matchLabels:
+      tier: "application"
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network-zone: "dmz"
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              network-zone: "data"
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+
+---
+# Block metadata service access (cloud environments)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-metadata-service
+  namespace: default
+  labels:
+    security.openshift.io/policy: "block-metadata"
+  annotations:
+    description: "Block access to cloud metadata services (SSRF prevention)"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.169.254/32  # AWS/GCP/Azure metadata
+              - 100.100.100.200/32  # Alibaba Cloud metadata

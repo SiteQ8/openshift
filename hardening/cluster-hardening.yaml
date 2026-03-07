@@ -1,0 +1,145 @@
+# =============================================================================
+# CIS Benchmark Cluster Hardening - OpenShift 4.x
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: CIS Benchmark for Red Hat OpenShift Level 1 & 2
+# =============================================================================
+
+---
+# CIS 1.2.1 - Ensure API server audit logging is enabled
+apiVersion: config.openshift.io/v1
+kind: APIServer
+metadata:
+  name: cluster
+spec:
+  audit:
+    profile: AllRequestBodies
+  tlsSecurityProfile:
+    type: Custom
+    custom:
+      ciphers:
+        - TLS_AES_128_GCM_SHA256
+        - TLS_AES_256_GCM_SHA384
+        - TLS_CHACHA20_POLY1305_SHA256
+        - ECDHE-ECDSA-AES128-GCM-SHA256
+        - ECDHE-RSA-AES128-GCM-SHA256
+        - ECDHE-ECDSA-AES256-GCM-SHA384
+        - ECDHE-RSA-AES256-GCM-SHA384
+      minTLSVersion: VersionTLS12
+
+---
+# CIS 3.2.1 - Ensure minimal audit policy
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+spec:
+  tokenConfig:
+    accessTokenMaxAgeSeconds: 28800     # 8 hours max
+    accessTokenInactivityTimeout: 900s  # 15 min idle timeout
+
+---
+# CIS 5.1.6 - Ensure default service account is not used
+# Applied via Kyverno policy (see kyverno-policies.yaml)
+
+---
+# Disable self-provisioning for unauthorized users
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: self-provisioners
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "false"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: self-provisioner
+subjects: []  # Empty - no one can self-provision
+
+---
+# CIS 5.2.2 - Minimize admission of containers with allowPrivilegeEscalation
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: restricted-v2-custom
+  annotations:
+    kubernetes.io/description: "Custom restricted SCC aligned with CIS Benchmark Level 2"
+    compliance.cis-benchmark: "5.2.2,5.2.3,5.2.4,5.2.5"
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+allowedCapabilities: []
+defaultAddCapabilities: []
+fsGroup:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 65534
+readOnlyRootFilesystem: true
+requiredDropCapabilities:
+  - ALL
+runAsUser:
+  type: MustRunAsRange
+  uidRangeMin: 1000
+  uidRangeMax: 65534
+seLinuxContext:
+  type: MustRunAs
+seccompProfiles:
+  - runtime/default
+supplementalGroups:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 65534
+volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+
+---
+# Configure console to show security banners
+apiVersion: console.openshift.io/v1
+kind: ConsoleNotification
+metadata:
+  name: security-classification
+spec:
+  text: "ENTERPRISE RESTRICTED - This cluster contains PCI DSS regulated data. All actions are logged and monitored."
+  location: BannerTop
+  color: "#FFFFFF"
+  backgroundColor: "#CC0000"
+
+---
+# Restrict project creation
+apiVersion: project.openshift.io/v1
+kind: ProjectRequestTemplate
+metadata:
+  name: project-request-template
+  namespace: openshift-config
+objects:
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: ${PROJECT_NAME}
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        pod-security.kubernetes.io/audit: restricted
+        pod-security.kubernetes.io/warn: restricted
+        security.openshift.io/classification: "internal"
+      annotations:
+        openshift.io/requester: ${PROJECT_REQUESTING_USER}
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: default-deny-all
+      namespace: ${PROJECT_NAME}
+    spec:
+      podSelector: {}
+      policyTypes:
+        - Ingress
+        - Egress

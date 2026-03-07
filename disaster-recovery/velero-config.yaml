@@ -1,0 +1,61 @@
+# =============================================================================
+# Velero Backup Configuration
+# Author: Ali AlEnezi (@SiteQ8)
+# =============================================================================
+
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: pci-cde-backup
+  namespace: velero
+spec:
+  schedule: "0 */4 * * *"
+  template:
+    includedNamespaces:
+      - pci-cde
+    storageLocation: encrypted-s3
+    volumeSnapshotLocations:
+      - encrypted-snapshots
+    defaultVolumesToRestic: true
+    ttl: 2160h  # 90 days
+    metadata:
+      labels:
+        backup-type: pci-cde
+        compliance: pci-dss
+
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-full-backup
+  namespace: velero
+spec:
+  schedule: "0 1 * * *"
+  template:
+    includedNamespaces:
+      - app-production
+      - app-staging
+      - ci-cd
+    excludedResources:
+      - events
+      - events.events.k8s.io
+    storageLocation: encrypted-s3
+    defaultVolumesToRestic: true
+    ttl: 720h  # 30 days
+
+---
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: encrypted-s3
+  namespace: velero
+spec:
+  provider: aws
+  objectStorage:
+    bucket: enterprise-openshift-backups
+    prefix: velero
+  config:
+    region: us-east-1
+    serverSideEncryption: aws:kms
+    kmsKeyId: <KMS_KEY_ARN>

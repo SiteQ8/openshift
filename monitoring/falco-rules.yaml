@@ -1,0 +1,198 @@
+# =============================================================================
+# Falco Runtime Security Rules
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 5, 11.5.1
+# =============================================================================
+
+---
+# Falco DaemonSet deployment
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: falco
+  namespace: falco-system
+  labels:
+    app: falco
+    compliance.pci-dss/requirement: "5.2.1,11.5.1"
+spec:
+  selector:
+    matchLabels:
+      app: falco
+  template:
+    metadata:
+      labels:
+        app: falco
+    spec:
+      serviceAccountName: falco
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+      containers:
+        - name: falco
+          image: docker.io/falcosecurity/falco:0.37.1
+          securityContext:
+            privileged: true
+          args:
+            - /usr/bin/falco
+            - --cri
+            - /run/crio/crio.sock
+            - -K
+            - /var/run/secrets/kubernetes.io/serviceaccount/token
+            - -k
+            - https://kubernetes.default
+            - --k8s-node=$(FALCO_K8S_NODE_NAME)
+          env:
+            - name: FALCO_K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: crio-socket
+              mountPath: /run/crio/crio.sock
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: boot
+              mountPath: /host/boot
+              readOnly: true
+            - name: lib-modules
+              mountPath: /host/lib/modules
+              readOnly: true
+            - name: usr
+              mountPath: /host/usr
+              readOnly: true
+            - name: etc
+              mountPath: /host/etc
+              readOnly: true
+            - name: falco-config
+              mountPath: /etc/falco
+      volumes:
+        - name: crio-socket
+          hostPath:
+            path: /run/crio/crio.sock
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: boot
+          hostPath:
+            path: /boot
+        - name: lib-modules
+          hostPath:
+            path: /lib/modules
+        - name: usr
+          hostPath:
+            path: /usr
+        - name: etc
+          hostPath:
+            path: /etc
+        - name: falco-config
+          configMap:
+            name: falco-rules
+
+---
+# Custom Falco rules for OpenShift
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-rules
+  namespace: falco-system
+data:
+  custom-rules.yaml: |
+    # ─── Container Escape Detection ─────────────────────────────
+    - rule: Container Escape via nsenter
+      desc: Detect nsenter usage that may indicate container escape
+      condition: >
+        spawned_process and container and proc.name = nsenter
+      output: >
+        Container escape attempt via nsenter
+        (user=%user.name container=%container.name image=%container.image.repository
+        command=%proc.cmdline namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [container, escape, mitre_privilege_escalation]
+
+    # ─── Cryptocurrency Mining Detection ────────────────────────
+    - rule: Cryptocurrency Mining Activity
+      desc: Detect potential cryptomining processes
+      condition: >
+        spawned_process and container and
+        (proc.name in (xmrig, minerd, minergate, stratum, cpuminer) or
+        proc.cmdline contains "stratum+tcp" or
+        proc.cmdline contains "pool.mine")
+      output: >
+        Cryptocurrency mining detected
+        (user=%user.name container=%container.name command=%proc.cmdline
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [container, cryptomining, mitre_resource_hijacking]
+
+    # ─── Sensitive File Access in PCI CDE ───────────────────────
+    - rule: PCI CDE Sensitive File Access
+      desc: Detect access to sensitive files in PCI CDE pods
+      condition: >
+        open_read and container and k8s.ns.name = "pci-cde" and
+        (fd.name startswith /etc/shadow or
+         fd.name startswith /etc/passwd or
+         fd.name startswith /proc/self/environ)
+      output: >
+        Sensitive file access in PCI CDE
+        (user=%user.name file=%fd.name container=%container.name
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [pci-dss, data-access, mitre_credential_access]
+
+    # ─── Reverse Shell Detection ────────────────────────────────
+    - rule: Reverse Shell in Container
+      desc: Detect reverse shell connections from containers
+      condition: >
+        spawned_process and container and
+        ((proc.name in (bash, sh, zsh, dash) and
+          proc.cmdline contains "/dev/tcp") or
+         (proc.name = nc and proc.cmdline contains "-e") or
+         (proc.name = ncat and proc.cmdline contains "--exec") or
+         proc.name in (meterpreter, reverse_tcp))
+      output: >
+        Reverse shell detected in container
+        (user=%user.name container=%container.name command=%proc.cmdline
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [container, reverse-shell, mitre_execution]
+
+    # ─── Unauthorized kubectl/oc Usage ──────────────────────────
+    - rule: Kubectl or OC in Container
+      desc: Detect kubectl or oc CLI usage inside containers
+      condition: >
+        spawned_process and container and
+        proc.name in (kubectl, oc) and
+        not k8s.ns.name in (ci-cd, openshift-gitops)
+      output: >
+        kubectl/oc detected inside container
+        (user=%user.name container=%container.name command=%proc.cmdline
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: WARNING
+      tags: [container, suspicious-tool, mitre_execution]
+
+    # ─── Package Manager in Running Container ───────────────────
+    - rule: Package Manager Execution
+      desc: Detect package manager usage in running containers
+      condition: >
+        spawned_process and container and
+        proc.name in (apt, apt-get, yum, dnf, rpm, pip, npm, gem, apk)
+      output: >
+        Package manager executed in running container
+        (user=%user.name container=%container.name command=%proc.cmdline
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: WARNING
+      tags: [container, software-install, mitre_persistence]
+
+    # ─── Network Scanning Tools ─────────────────────────────────
+    - rule: Network Scanning in Container
+      desc: Detect network scanning tools running in containers
+      condition: >
+        spawned_process and container and
+        proc.name in (nmap, masscan, zmap, nikto, dirb, gobuster, sqlmap)
+      output: >
+        Network scanning tool detected
+        (user=%user.name container=%container.name command=%proc.cmdline
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [container, network-scan, mitre_discovery]

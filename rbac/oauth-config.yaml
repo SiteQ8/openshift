@@ -1,0 +1,101 @@
+# =============================================================================
+# OAuth / Identity Provider Configuration
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 8 - Identify & Authenticate
+# =============================================================================
+
+---
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+spec:
+  tokenConfig:
+    accessTokenMaxAgeSeconds: 28800
+    accessTokenInactivityTimeout: 900s
+  identityProviders:
+    # LDAP/Active Directory Integration
+    - name: enterprise-ldap
+      type: LDAP
+      mappingMethod: claim
+      ldap:
+        url: "ldaps://ldap.enterprise.example.com:636/ou=users,dc=enterprise,dc=example,dc=com?uid"
+        insecure: false
+        ca:
+          name: ldap-ca-cert
+        bindDN: "cn=openshift-bind,ou=service-accounts,dc=enterprise,dc=example,dc=com"
+        bindPassword:
+          name: ldap-bind-password
+        attributes:
+          id: ["dn"]
+          email: ["mail"]
+          name: ["cn"]
+          preferredUsername: ["uid"]
+    # OIDC Integration (for MFA enforcement)
+    - name: enterprise-oidc
+      type: OpenID
+      mappingMethod: claim
+      openID:
+        clientID: openshift-cluster
+        clientSecret:
+          name: oidc-client-secret
+        issuer: https://sso.enterprise.example.com/auth/realms/enterprise
+        claims:
+          preferredUsername: ["preferred_username"]
+          name: ["name"]
+          email: ["email"]
+          groups: ["groups"]
+        extraScopes:
+          - email
+          - profile
+          - groups
+
+---
+# LDAP CA Certificate
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ldap-ca-cert
+  namespace: openshift-config
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    <LDAP_CA_CERTIFICATE>
+    -----END CERTIFICATE-----
+
+---
+# Group Sync (LDAP groups to OpenShift)
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: GroupSync
+metadata:
+  name: ldap-group-sync
+  namespace: group-sync-operator
+spec:
+  schedule: "*/30 * * * *"
+  providers:
+    - name: ldap
+      ldap:
+        url: "ldaps://ldap.enterprise.example.com:636"
+        insecure: false
+        caSecret:
+          name: ldap-ca-cert
+          namespace: openshift-config
+          key: ca.crt
+        credentialsSecret:
+          name: ldap-bind-password
+          namespace: openshift-config
+        rfc2307:
+          groupsQuery:
+            baseDN: "ou=groups,dc=enterprise,dc=example,dc=com"
+            scope: sub
+            derefAliases: never
+            filter: "(objectClass=groupOfNames)"
+          groupUIDAttribute: dn
+          groupNameAttributes: ["cn"]
+          groupMembershipAttributes: ["member"]
+          usersQuery:
+            baseDN: "ou=users,dc=enterprise,dc=example,dc=com"
+            scope: sub
+            derefAliases: never
+          userUIDAttribute: dn
+          userNameAttributes: ["uid"]

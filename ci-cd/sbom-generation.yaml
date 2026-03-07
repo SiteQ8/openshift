@@ -1,0 +1,44 @@
+# =============================================================================
+# SBOM Generation Configuration
+# Author: Ali AlEnezi (@SiteQ8)
+# Standard: PCI DSS v4.0 Req 6.3.2 - Software Inventory
+# =============================================================================
+
+---
+# CronJob to scan all running images for SBOM
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sbom-inventory-scan
+  namespace: ci-cd
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: tekton-pipeline
+          containers:
+            - name: sbom-scanner
+              image: anchore/syft:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "=== SBOM Inventory Scan - $(date) ==="
+                  # Get all running images
+                  IMAGES=$(kubectl get pods --all-namespaces -o jsonpath='{range .items[*]}{range .spec.containers[*]}{.image}{"\n"}{end}{end}' | sort -u)
+                  
+                  for IMAGE in $IMAGES; do
+                    echo "Scanning: $IMAGE"
+                    syft packages "$IMAGE" -o spdx-json --file "/sbom/$(echo $IMAGE | tr '/:' '__').json" 2>/dev/null || echo "Failed: $IMAGE"
+                  done
+                  echo "=== Scan Complete ==="
+              volumeMounts:
+                - name: sbom-storage
+                  mountPath: /sbom
+          restartPolicy: OnFailure
+          volumes:
+            - name: sbom-storage
+              persistentVolumeClaim:
+                claimName: sbom-storage-pvc
