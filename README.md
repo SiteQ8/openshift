@@ -1,4 +1,10 @@
-# 🛡️ OpenShift Enterprise Secure Architecture Blueprint
+<div align="center">
+
+<img src="docs/screenshots/banner.svg" width="100%" alt="OpenShift Secure Architecture"/>
+
+</div>
+
+# OpenShift Enterprise Secure Architecture Blueprint
 
 <p align="center">
   <img src="https://img.shields.io/badge/OpenShift-4.x-EE0000?style=for-the-badge&logo=redhatopenshift&logoColor=white" alt="OpenShift 4.x"/>
@@ -15,7 +21,7 @@
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Architecture Diagram](#architecture-diagram)
@@ -29,7 +35,7 @@
 
 ---
 
-## 🏗️ Overview
+## Overview
 
 This blueprint provides a **complete, enterprise-grade security architecture** for deploying and operating Red Hat OpenShift Container Platform (OCP 4.x) with full compliance to:
 
@@ -44,10 +50,10 @@ This blueprint provides a **complete, enterprise-grade security architecture** f
 
 ### Key Features
 
-- 🔐 **Zero Trust Architecture** — Network microsegmentation, mTLS everywhere, identity-aware proxy
-- 🏰 **Defense in Depth** — 7-layer security model from infrastructure to application
-- 📊 **Compliance Dashboard** — Interactive GUI for architecture visualization and compliance tracking
-- 🔄 **GitOps Security** — ArgoCD-driven policy enforcement with OPA/Gatekeeper
+- **Zero Trust Architecture** — Network microsegmentation, mTLS everywhere, identity-aware proxy
+- **Defense in Depth** — 7-layer security model from infrastructure to application
+- **Compliance Dashboard** — Interactive GUI for architecture visualization and compliance tracking
+- **GitOps Security** — ArgoCD-driven policy enforcement with OPA/Gatekeeper
 - 🕵️ **Runtime Security** — StackRox/ACS, Falco, and custom admission controllers
 - 📦 **Supply Chain Security** — Sigstore, Cosign, SBOM generation, and image provenance
 - 🌐 **Network Hardening** — Calico/OVN-Kubernetes policies, egress firewalling, service mesh
@@ -55,7 +61,7 @@ This blueprint provides a **complete, enterprise-grade security architecture** f
 
 ---
 
-## 🏛️ Architecture Diagram
+## Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -122,7 +128,7 @@ This blueprint provides a **complete, enterprise-grade security architecture** f
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 openshift/
@@ -184,7 +190,7 @@ openshift/
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -250,7 +256,7 @@ Open `gui/index.html` in your browser or visit the [GitHub Pages site](https://s
 
 ---
 
-## 🔒 Security Domains
+## Security Domains
 
 ### 1. Infrastructure Security
 - RHCOS immutable operating system with SELinux enforcing
@@ -296,7 +302,7 @@ Open `gui/index.html` in your browser or visit the [GitHub Pages site](https://s
 
 ---
 
-## 📊 PCI DSS v4.0 Mapping
+## PCI DSS v4.0 Mapping
 
 | PCI DSS Requirement | OpenShift Implementation | Status |
 |---------------------|-------------------------|--------|
@@ -315,7 +321,18 @@ Open `gui/index.html` in your browser or visit the [GitHub Pages site](https://s
 
 ---
 
-## 🖥️ Interactive GUI
+## Interactive GUI
+
+The dashboard includes a login screen for access control:
+
+| Credential | Value |
+|------------|-------|
+| **Username** | `admin` |
+| **Password** | `OCP@Secure2025` |
+
+Features include compliance radar chart, risk distribution doughnut, control coverage by domain, and full architecture visualization.
+
+### Launch
 
 The blueprint includes an interactive web dashboard for visualizing the architecture and tracking compliance:
 
@@ -332,7 +349,7 @@ Features:
 
 ---
 
-## 👤 Author
+## Author
 
 **Ali AlEnezi** ([@SiteQ8](https://github.com/SiteQ8))
 
@@ -343,7 +360,7 @@ Cybersecurity Architect | Kuwait 🇰🇼
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
