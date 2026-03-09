@@ -268,9 +268,60 @@ tr:hover td{background:rgba(0,212,255,0.03)}
 }
 .footer a{color:var(--accent);text-decoration:none}
 .footer a:hover{text-decoration:underline}
+/* Login Screen */
+#login-overlay{position:fixed;inset:0;background:var(--bg);z-index:10000;display:flex;align-items:center;justify-content:center}
+#login-overlay.hidden{display:none}
+.login-grid{position:absolute;inset:0;background-image:linear-gradient(#1e2a4508 1px,transparent 1px),linear-gradient(90deg,#1e2a4508 1px,transparent 1px);background-size:40px 40px}
+.login-box{position:relative;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:40px;width:420px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+.login-box h1{font-family:'JetBrains Mono',monospace;font-size:1.4rem;font-weight:700;color:#EE0000;text-align:center;margin-bottom:4px}
+.login-box p{font-size:0.78rem;color:var(--text-dim);text-align:center;margin-bottom:20px}
+.login-field{margin-bottom:14px}
+.login-field label{display:block;font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px}
+.login-field input{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:0.85rem;outline:none;transition:border-color .15s}
+.login-field input:focus{border-color:#EE0000}
+.login-btn{width:100%;padding:12px;background:#EE0000;color:#fff;border:none;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:0.85rem;font-weight:700;cursor:pointer;transition:background .15s}
+.login-btn:hover{background:#cc0000}
+.login-error{color:var(--red);font-family:'JetBrains Mono',monospace;font-size:0.72rem;text-align:center;margin-top:8px;min-height:16px}
+.login-demo{margin-top:18px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:8px}
+.login-demo-t{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#EE0000;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
+.login-demo-r{display:flex;justify-content:space-between;padding:3px 0;font-family:'JetBrains Mono',monospace;font-size:0.78rem}
+.login-demo-r span:first-child{color:var(--text-dim)}
+.login-demo-r span:last-child{color:var(--text);cursor:pointer;padding:2px 8px;border-radius:4px;border:1px solid var(--border);transition:all .12s}
+.login-demo-r span:last-child:hover{border-color:#EE0000;color:#EE0000}
+.login-ver{text-align:center;margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:var(--text-dim)}
+#main-app{display:none}
+#main-app.visible{display:block}
+.user-badge{padding:4px 10px;border-radius:5px;background:var(--bg3);border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--text-dim);cursor:pointer;margin-left:8px}
+.user-badge:hover{border-color:var(--red);color:var(--red)}
+/* Charts row */
+.charts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}
+@media(max-width:768px){.charts-row{grid-template-columns:1fr}}
+.chart-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px}
+.chart-card h3{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
+<!-- Login Screen -->
+<div id="login-overlay">
+    <div class="login-grid"></div>
+    <div class="login-box">
+        <h1>OpenShift Secure Architecture</h1>
+        <p>Enterprise Security Blueprint — Dashboard Access</p>
+        <div class="login-field"><label>Username</label><input type="text" id="login-user" placeholder="Enter username" autocomplete="off"></div>
+        <div class="login-field"><label>Password</label><input type="password" id="login-pass" placeholder="Enter password"></div>
+        <button class="login-btn" onclick="doLogin()">Sign In</button>
+        <div class="login-error" id="login-error"></div>
+        <div class="login-demo">
+            <div class="login-demo-t">Demo Credentials</div>
+            <div class="login-demo-r"><span>Username:</span> <span onclick="document.getElementById('login-user').value='admin';document.getElementById('login-pass').value='OCP@Secure2025'">admin</span></div>
+            <div class="login-demo-r"><span>Password:</span> <span onclick="document.getElementById('login-user').value='admin';document.getElementById('login-pass').value='OCP@Secure2025'">OCP@Secure2025</span></div>
+            <div style="font-size:0.62rem;color:var(--text-dim);margin-top:6px;text-align:center">Click credentials to auto-fill</div>
+        </div>
+        <div class="login-ver">OpenShift Secure Architecture v2.0 — @SiteQ8</div>
+    </div>
+</div>
+<div id="main-app">
 
 <!-- Header -->
 <header class="header">
@@ -284,6 +335,7 @@ tr:hover td{background:rgba(0,212,255,0.03)}
   <div class="header-right">
     <span class="header-meta"><span class="status-dot"></span> Blueprint Active</span>
     <span class="header-meta">By Ali AlEnezi</span>
+    <span class="user-badge" onclick="document.getElementById('login-overlay').classList.remove('hidden');document.getElementById('main-app').classList.remove('visible');">admin [logout]</span>
   </div>
 </header>
 
@@ -331,6 +383,12 @@ tr:hover td{background:rgba(0,212,255,0.03)}
       <div class="stat-label">Container techniques covered</div>
       <div class="stat-trend trend-up">&#9650; Full matrix coverage</div>
     </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card"><h3>Compliance Radar</h3><div style="position:relative;height:240px"><canvas id="chart-compliance"></canvas></div></div>
+    <div class="chart-card"><h3>Risk Distribution</h3><div style="position:relative;height:240px"><canvas id="chart-risk-dist"></canvas></div></div>
+    <div class="chart-card"><h3>Control Coverage by Domain</h3><div style="position:relative;height:240px"><canvas id="chart-coverage"></canvas></div></div>
   </div>
 
   <div class="grid grid-2">
@@ -822,6 +880,58 @@ renderTraffic();
 renderZones();
 renderLayers();
 renderInventory();
+</script>
+</div><!-- /main-app -->
+
+<script>
+// Login
+function doLogin(){
+    const u=document.getElementById('login-user').value,p=document.getElementById('login-pass').value;
+    if(u==='admin'&&p==='OCP@Secure2025'){
+        document.getElementById('login-overlay').classList.add('hidden');
+        document.getElementById('main-app').classList.add('visible');
+        initCharts();
+    } else {
+        document.getElementById('login-error').textContent=u||p?'Invalid credentials. Use demo account below.':'Enter username and password.';
+    }
+}
+document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+document.getElementById('login-user').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('login-pass').focus()});
+
+// Charts
+function initCharts(){
+    // Compliance Radar
+    const radarCtx=document.getElementById('chart-compliance');
+    if(radarCtx){
+        new Chart(radarCtx,{
+            type:'radar',
+            data:{labels:['PCI DSS','NIST 800-53','CIS Bench','SOC 2','ISO 27001','MITRE ATT&CK'],
+                datasets:[{label:'Current',data:[92,88,95,85,90,78],borderColor:'#00d4ff',backgroundColor:'#00d4ff15',pointBackgroundColor:'#00d4ff',pointRadius:3,borderWidth:2},
+                    {label:'Target',data:[100,100,100,100,100,100],borderColor:'#2ed57340',backgroundColor:'#2ed57308',pointRadius:0,borderWidth:1,borderDash:[4,4]}]},
+            options:{responsive:true,maintainAspectRatio:false,scales:{r:{grid:{color:'#1e2a45'},ticks:{display:false},pointLabels:{color:'#6b7fa3',font:{family:'JetBrains Mono',size:10}},suggestedMin:0,suggestedMax:100}},plugins:{legend:{position:'bottom',labels:{color:'#6b7fa3',font:{family:'JetBrains Mono',size:9},padding:8,boxWidth:10}}}}
+        });
+    }
+    // Risk Distribution
+    const riskCtx=document.getElementById('chart-risk-dist');
+    if(riskCtx){
+        new Chart(riskCtx,{
+            type:'doughnut',
+            data:{labels:['Critical','High','Medium','Low'],datasets:[{data:[3,8,15,24],backgroundColor:['#ff4757','#ff6b35','#ffa502','#2ed573'],borderWidth:0,hoverOffset:4}]},
+            options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{position:'bottom',labels:{color:'#6b7fa3',font:{family:'JetBrains Mono',size:9},padding:8,boxWidth:10}}}}
+        });
+    }
+    // Control Coverage
+    const covCtx=document.getElementById('chart-coverage');
+    if(covCtx){
+        new Chart(covCtx,{
+            type:'bar',
+            data:{labels:['Infra','Cluster','IAM','Network','Supply Chain','Runtime','Data'],
+                datasets:[{label:'Implemented',data:[95,92,88,90,85,80,87],backgroundColor:'#00d4ff60',borderColor:'#00d4ff',borderWidth:1,borderRadius:3},
+                    {label:'Remaining',data:[5,8,12,10,15,20,13],backgroundColor:'#ff475740',borderColor:'#ff4757',borderWidth:1,borderRadius:3}]},
+            options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#6b7fa3',font:{family:'JetBrains Mono',size:9}}},y:{stacked:true,grid:{color:'#1e2a45'},ticks:{color:'#6b7fa3',font:{family:'JetBrains Mono',size:9}},max:100}},plugins:{legend:{position:'bottom',labels:{color:'#6b7fa3',font:{family:'JetBrains Mono',size:9},padding:8,boxWidth:10}}}}
+        });
+    }
+}
 </script>
 </body>
 </html>
