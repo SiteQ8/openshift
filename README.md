@@ -37,7 +37,7 @@
 
 ## Overview
 
-This blueprint provides a **complete, enterprise-grade security architecture** for deploying and operating Red Hat OpenShift Container Platform (OCP 4.x) with full compliance to:
+This blueprint provides a **complete, security architecture** for deploying and operating Red Hat OpenShift Container Platform (OCP 4.x) with full compliance to:
 
 | Standard | Version | Coverage |
 |----------|---------|----------|
@@ -50,14 +50,14 @@ This blueprint provides a **complete, enterprise-grade security architecture** f
 
 ### Key Features
 
-- **Zero Trust Architecture** — Network microsegmentation, mTLS everywhere, identity-aware proxy
-- **Defense in Depth** — 7-layer security model from infrastructure to application
-- **Compliance Dashboard** — Interactive GUI for architecture visualization and compliance tracking
-- **GitOps Security** — ArgoCD-driven policy enforcement with OPA/Gatekeeper
-- 🕵️ **Runtime Security** — StackRox/ACS, Falco, and custom admission controllers
-- 📦 **Supply Chain Security** — Sigstore, Cosign, SBOM generation, and image provenance
-- 🌐 **Network Hardening** — Calico/OVN-Kubernetes policies, egress firewalling, service mesh
-- 💾 **Data Protection** — Encryption at rest (LUKS2), in transit (TLS 1.3), and in use (SGX)
+- **Zero Trust Architecture**: Network microsegmentation, mTLS everywhere, identity-aware proxy
+- **Defense in Depth**: 7-layer security model from infrastructure to application
+- **Compliance Dashboard**: Interactive GUI for architecture visualization and compliance tracking
+- **GitOps Security**: ArgoCD-driven policy enforcement with OPA/Gatekeeper
+- **Runtime Security**: StackRox/ACS, Falco, and custom admission controllers
+- **Supply Chain Security**: Sigstore, Cosign, SBOM generation, and image provenance
+- **Network Hardening**: Calico/OVN-Kubernetes policies, egress firewalling, service mesh
+- **Data Protection**: Encryption at rest (LUKS2), in transit (TLS 1.3), and in use (SGX)
 
 ---
 
@@ -336,7 +336,7 @@ Features include compliance radar chart, risk distribution doughnut, control cov
 
 The blueprint includes an interactive web dashboard for visualizing the architecture and tracking compliance:
 
-**🌐 Live Demo**: [https://siteq8.github.io/openshift/gui/](https://siteq8.github.io/openshift/gui/)
+**Live Demo**: [https://siteq8.github.io/openshift/gui/](https://siteq8.github.io/openshift/gui/)
 
 Features:
 - Interactive architecture topology viewer
@@ -367,6 +367,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <p align="center">
-  <strong>Built with ❤️ for the cybersecurity community</strong><br>
   <em>Securing containers, one policy at a time.</em>
 </p>
